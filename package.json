@@ -7,7 +7,8 @@
     "build": "next build --turbopack",
     "start": "next start",
     "lint": "eslint",
-    "pool:matrix": "tsx scripts/report/pool-matrix.ts"
+    "pool:matrix": "tsx scripts/report/pool-matrix.ts",
+    "probe:sources": "tsx scripts/report/source-probe.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.0",
