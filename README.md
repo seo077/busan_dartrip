@@ -5,7 +5,8 @@
 
 - 기술 구성: Next.js (App Router · TypeScript · Tailwind CSS) · Supabase (PostgreSQL + PostGIS) · Vercel
 - 설계 문서는 이 저장소가 아니라 별도의 협업 폴더에 있습니다. 이 저장소에는 코드만 둡니다.
-- 현재 단계: **환경 구축 · DB 스키마 · 뼈대 배포**. 다트 기능·지도·상세 화면은 이후 단계에서 붙습니다.
+- 현재 단계: **환경 구축 · DB 스키마 · 뼈대 배포 · 장소 데이터 백필**.
+  다트 기능·지도·상세 화면은 이후 단계에서 붙습니다.
 
 ---
 
@@ -55,23 +56,73 @@ npm run dev
 
 ### 잘 되었는지 확인하는 법
 
-첫 화면에 **"한국관광공사 국문 관광정보 서비스에 등록된 부산 지역 장소는 총 1,6xx건입니다"**
-라는 문장과 장소 카드 12장이 보이면 연동이 끝난 것입니다.
-총 건수는 2026-08-04 실측 기준 **1,628건** 이며, 제공기관이 데이터를 더하거나 빼면 조금씩 달라집니다.
+첫 화면에 **"…부산 지역에 대해 현재 제공하는 장소는 총 725건입니다"** 라는 문장과
+장소 카드 12장이 보이면 연동이 끝난 것입니다. **725**는 2026-08-05 실측값이며,
+제공기관이 데이터를 더하거나 빼면 조금씩 달라집니다.
+
+### 헷갈리는 네 숫자
+
+관광공사 부산 데이터에는 **세는 대상이 서로 다른 숫자 네 개**가 나옵니다. 어느 자리에
+무엇을 쓰는지 헷갈리면 용량 예산·호출량·다트 풀 두께가 전부 어긋납니다.
+
+| 숫자 | 무엇을 센 것인가 | 어디에 쓰나 |
+|---|---|---|
+| **1,628** | `areaBasedSyncList2` 의 `totalCount`. **삭제·미노출 이력을 포함**한 누적 | 증분 동기화 경로의 상한 |
+| **725** | `areaBasedList2` 의 `totalCount`. **현재 노출 대상만** | 첫 화면 표시 · 백필 수집량 |
+| **723** | 위 725 중 실제로 `places` 에 적재된 수 | DB 용량 산정 |
+| **598** | 723 중 테마가 붙은 수 (= 다트 풀) | 다트가 뽑을 수 있는 후보 수 |
+
+- `1,628 → 725` 는 `areaBasedList2` 가 이미 `showflag='1'` 만 돌려주기 때문입니다.
+  실제로 백필에서 `showflag` 로 걸러진 건수는 **0**이었습니다. `showflag` 필터는
+  `areaBasedSyncList2` 를 쓰는 증분 경로 전용으로 남습니다.
+- `725 → 723` 은 좌표가 부산 밖인 2건(`반송공원` · `해파랑길(부산,울산 구간)`)을 뺀 것입니다.
+- `723 → 598` 은 테마 4종 어디에도 안 붙은 125건(쇼핑 56 · 숙박 69)이 미분류 보관함으로
+  가기 때문입니다. 버려지지 않고 같은 표에 남아 있습니다.
+
+여기에 **부산명소정보 213건**을 병합하면 `places` **936행** · 다트 풀 **787건**이 됩니다.
 
 ### 다트 풀 실측 표 — `npm run pool:matrix`
 
 ```bash
-npm run pool:matrix
+npm run pool:matrix              # 관광공사 단독 — API 직접 호출, DB 없이 돕니다
+npm run pool:matrix -- --from-db # 병합된 실제 다트 풀 — 외부 호출 0회
 ```
 
-부산 16개 구·군 × 테마 4종 = **64칸의 실제 장소 건수**를 관광공사 API 에서 직접 세어 표로
-출력합니다. **DB 없이 돕니다** — `.env.local` 의 `DATA_GO_KR_KEY` 하나만 있으면 되고,
-Supabase 마이그레이션을 아직 안 돌렸어도 실행됩니다(테마 규칙은 마이그레이션 SQL 의 초기값
-구문을 읽어서 씁니다). **API 호출은 9회**이며 개발계정 한도는 1,000회/일입니다.
+부산 16개 구·군 × 테마 4종 = **64칸의 실제 장소 건수**를 표로 출력합니다.
+
+- **기본 경로**는 관광공사 API 에서 직접 셉니다. `.env.local` 의 `DATA_GO_KR_KEY` 하나만
+  있으면 되고, 마이그레이션을 아직 안 돌렸어도 실행됩니다(테마 규칙은 마이그레이션 SQL 을
+  순서대로 읽어서 씁니다). **API 호출은 9회**이며 개발계정 한도는 1,000회/일입니다.
+- **`--from-db`** 는 백필이 끝난 뒤 `places` 를 읽어, 여러 출처가 병합된 실제 다트 풀을
+  셉니다. 출처별 기여와 **관광공사 단독 ↔ 병합 후 비교표**를 함께 냅니다.
 
 옵션: `--page-size`(기본 100) · `--max-pages`(기본 30) · `--delay`(기본 200ms).
 예) `npm run pool:matrix -- --delay=500`
+
+### 백필 — `npm run backfill:*`
+
+마이그레이션을 실행한 뒤 아래 순서로 돌립니다. 전부 로컬 실행이며 DB 에 직접 씁니다.
+
+```bash
+npm run backfill:sigungu               # 구·군 마스터 16행 (다른 백필의 선행 조건)
+npm run backfill:theme-map -- --apply  # 마이그레이션의 테마 규칙을 DB 에 반영
+npm run backfill:tourapi               # 관광공사 → places
+npm run backfill:busan                 # 부산명소정보 → places
+npm run backfill:walking               # 부산도보여행정보 → courses
+npm run backfill:sigungu -- --recenter # 구·군 중심 좌표를 실제 평균으로
+npm run backfill:report                # 적재 결과 요약
+```
+
+- `backfill:sigungu` 가 먼저인 이유 — `places.sigungu_code` 가 `sigungu(code)` 를
+  참조하는 not null 외래키라, 이 표가 비면 장소가 한 행도 안 들어갑니다.
+- 도보여행은 `places` 가 아니라 `courses` 로 갑니다. 응답 전건에 구·군·주소 필드가
+  없어(`0/56`) 소속 구·군을 알 수 없고, 코스는 좌표 한 점으로 대표되지 않습니다.
+- 각 스크립트는 `--dry-run` 을 받습니다. 무엇이 들어갈지 먼저 보고 싶을 때 씁니다.
+
+### 신규 소스 정찰 — `npm run probe:sources`
+
+부산광역시 오픈API 6종을 `numOfRows=1` 로 한 번씩(6회) 호출해 `totalCount` 와 샘플 1건의
+전체 필드, 좌표·구·군·분류 필드 유무를 표로 냅니다. 새 소스를 붙일지 판단하는 재료입니다.
 
 ---
 
@@ -199,14 +250,24 @@ busan_dartrip/
 ├── lib/
 │   ├── tourapi.ts              웹 전용 창구 (server-only 표식만)
 │   ├── tourapi.core.ts         관광공사 KorService2 호출 본체
+│   ├── busanapi.core.ts        부산광역시 오픈API(6260000) 호출 본체
 │   ├── theme.ts                테마 4종 · 분류 규칙 적용기
 │   └── supabase.ts             Supabase 클라이언트 (anon / service_role)
 ├── scripts/
-│   ├── lib/                    스크립트 공통 (환경변수 · 인자·표 · DB · 부산 상수 · 테마 규칙)
+│   ├── lib/                    스크립트 공통 (환경변수 · 인자·표 · DB · 부산 상수 ·
+│   │                           테마 규칙 · 구·군 색인과 places 적재)
+│   ├── backfill/
+│   │   ├── 01-sigungu.ts       areaCode2 → sigungu (+ --recenter)
+│   │   ├── 02-theme-map.ts     마이그레이션의 theme_map 구문을 DB 에 반영
+│   │   ├── 03-tourapi.ts       관광공사 → places
+│   │   ├── 04-busan.ts         부산명소정보 → places
+│   │   ├── 07-walking.ts       부산도보여행정보 → courses
+│   │   └── 09-report.ts        적재 결과 요약
 │   └── report/
-│       └── pool-matrix.ts      다트 풀 실측 표 (npm run pool:matrix)
+│       ├── pool-matrix.ts      다트 풀 실측 표 (npm run pool:matrix)
+│       └── source-probe.ts     신규 소스 정찰 (npm run probe:sources)
 ├── supabase/
-│   └── migrations/             DB 스키마 SQL
+│   └── migrations/             DB 스키마 · 테마 규칙 SQL
 ├── public/
 └── .env.example                환경변수 목록
 ```
@@ -215,9 +276,16 @@ busan_dartrip/
 밖 순수 Node 라서 `server-only` 를 import 하면 즉시 예외가 납니다. 그래서 실구현은 `core` 에
 두고, 웹 코드가 쓰는 `tourapi.ts` 에만 `server-only` 를 얹어 브라우저 번들 유출을 막습니다.
 
+`busanapi.core.ts` 를 따로 둔 이유 — 부산시 오픈API 는 관광공사와 **규격이 다릅니다.**
+형식 파라미터가 `_type` 이 아니라 `resultType`, 성공 코드가 `resultCode: "0000"` 이 아니라
+`header.code: "00"`, 응답 루트가 `{오퍼레이션}.item[]` 입니다. 재사용이 불가능합니다.
+
+백필 번호가 05·06·08 을 건너뛰는 것은 ④ `API데이터설계.md` §6.2 의 번호 체계를 그대로
+따르기 때문입니다. 그 자리는 국가유산·모범음식점·재집계 몫이며 아직 만들지 않았습니다.
+
 앞으로 추가될 것: `app/throw` · `app/result/[throwId]` · `app/place/[placeId]` ·
 `app/submit` · `app/about` · `app/api/throw` · `app/api/pool/stats` ·
-`app/api/cron/sync` · `lib/kakao.ts` · `scripts/backfill/`
+`app/api/cron/sync` · `lib/kakao.ts`
 
 ---
 
@@ -240,10 +308,11 @@ busan_dartrip/
 본 서비스는 아래 기관이 제공하는 공공데이터를 활용합니다.
 
 - 한국관광공사 — 국문 관광정보 서비스 / 관광지별 연관관광지 정보 / 두루누비 정보 서비스 / 관광사진 정보 / 한국관광 데이터랩
-- 부산광역시 — 부산명소정보
-- 국가유산청 — 국가유산 공간정보
+- 부산광역시 — 부산명소정보 / 부산도보여행정보
 - 행정안전부 — 전국모범음식점표준데이터
 - 카카오 — 카카오맵
+
+국가유산청 국가유산 공간정보는 **응답이 XML 전용**으로 확인돼 v1 에서는 붙이지 않습니다.
 
 위 데이터는 공공누리 이용허락 조건에 따라 출처를 표시하여 사용합니다.
 데이터의 최신성·정확성은 각 제공기관의 갱신 주기를 따르며, 실제 운영 정보는 방문 전 확인해 주세요.

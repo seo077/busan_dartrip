@@ -149,7 +149,7 @@ export default async function Home() {
         <>
           <section className="mb-6 rounded-lg border border-black/10 p-4 text-sm dark:border-white/15">
             <p>
-              한국관광공사 국문 관광정보 서비스에 등록된 부산 지역 장소는 총{" "}
+              한국관광공사 국문 관광정보 서비스가 부산 지역에 대해 현재 제공하는 장소는 총{" "}
               <strong>{state.totalCount.toLocaleString("ko-KR")}건</strong>입니다.
             </p>
             <p className="mt-1 text-xs opacity-70">
@@ -157,6 +157,11 @@ export default async function Home() {
               {state.filteredOut > 0
                 ? ` 제공기관이 비노출로 표시한 ${state.filteredOut}건은 목록에서 제외했습니다.`
                 : ""}
+            </p>
+            <p className="mt-1 text-xs opacity-70">
+              이 수는 <code>areaBasedList2</code> 가 돌려주는 <strong>현재 노출 대상</strong>
+              입니다. 동기화용 <code>areaBasedSyncList2</code> 는 삭제·미노출 이력까지 포함해
+              더 큰 수를 돌려주며, 두 값이 다른 것은 정상입니다.
             </p>
           </section>
 
