@@ -74,3 +74,19 @@ export function slugForSigungu(name: string, tourApiCode: string): string {
 
 /** 부산 구·군 수. 표의 행 수가 이 값과 다르면 마스터 적재가 덜 된 것입니다. */
 export const BUSAN_SIGUNGU_COUNT = 16;
+
+/**
+ * 부산시 오픈API 의 `MAIN_TITLE` 꼬리에 붙은 언어 표기를 뗍니다 (BUSAN-2).
+ *
+ *   `국립해양박물관(한,영,중간,중번,일)` → `국립해양박물관`
+ *   `초량이바구길 (한,영,중간,중번,일)`  → `초량이바구길`
+ *
+ * 언어 표기로 보이는 괄호만 떼며, 그 밖의 괄호는 이름의 일부일 수 있어 남깁니다.
+ * 명소는 `PLACE` 가 깨끗해서 이 함수가 거의 안 쓰이지만, 도보여행은 `PLACE` 가
+ * 경유지 나열이라 `MAIN_TITLE` 을 정제해 코스 이름으로 씁니다.
+ */
+export function stripLanguageTags(raw: string): string {
+  return raw
+    .replace(/\s*[(（]\s*(?:한|영|중간|중번|일)(?:\s*,\s*(?:한|영|중간|중번|일))*\s*[)）]\s*$/u, "")
+    .trim();
+}

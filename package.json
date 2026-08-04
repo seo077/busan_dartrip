@@ -8,7 +8,12 @@
     "start": "next start",
     "lint": "eslint",
     "pool:matrix": "tsx scripts/report/pool-matrix.ts",
-    "probe:sources": "tsx scripts/report/source-probe.ts"
+    "probe:sources": "tsx scripts/report/source-probe.ts",
+    "backfill:sigungu": "tsx scripts/backfill/01-sigungu.ts",
+    "backfill:tourapi": "tsx scripts/backfill/03-tourapi.ts",
+    "backfill:busan": "tsx scripts/backfill/04-busan.ts",
+    "backfill:walking": "tsx scripts/backfill/07-walking.ts",
+    "backfill:report": "tsx scripts/backfill/09-report.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.0",
