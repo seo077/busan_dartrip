@@ -17,6 +17,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { BusanMap, type MapFocus } from "@/components/home/BusanMap";
@@ -328,6 +329,16 @@ export function DartSetup() {
           <div className="mt-6 border-t border-white/10 pt-5 text-center text-sm text-[#98A2B3]">
             숨은 곳을 아시나요? 장소 등록은 곧 열립니다
           </div>
+
+          {/*
+            공공데이터 연동 확인 화면(AD-14). 이용자에게 크게 보일 이유는 없지만,
+            공공데이터포털 운영계정 승인요건 ③ 을 확인하는 사람이 찾을 수 있어야 합니다.
+          */}
+          <p className="mt-3 text-center text-xs text-[#98A2B3]/70">
+            <Link href="/data" className="underline underline-offset-2">
+              공공데이터 연동 확인
+            </Link>
+          </p>
         </>
       )}
 
