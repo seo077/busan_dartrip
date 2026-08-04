@@ -59,6 +59,20 @@ npm run dev
 라는 문장과 장소 카드 12장이 보이면 연동이 끝난 것입니다.
 총 건수는 2026-08-04 실측 기준 **1,628건** 이며, 제공기관이 데이터를 더하거나 빼면 조금씩 달라집니다.
 
+### 다트 풀 실측 표 — `npm run pool:matrix`
+
+```bash
+npm run pool:matrix
+```
+
+부산 16개 구·군 × 테마 4종 = **64칸의 실제 장소 건수**를 관광공사 API 에서 직접 세어 표로
+출력합니다. **DB 없이 돕니다** — `.env.local` 의 `DATA_GO_KR_KEY` 하나만 있으면 되고,
+Supabase 마이그레이션을 아직 안 돌렸어도 실행됩니다(테마 규칙은 마이그레이션 SQL 의 초기값
+구문을 읽어서 씁니다). **API 호출은 9회**이며 개발계정 한도는 1,000회/일입니다.
+
+옵션: `--page-size`(기본 100) · `--max-pages`(기본 30) · `--delay`(기본 200ms).
+예) `npm run pool:matrix -- --delay=500`
+
 ---
 
 ## 3. 환경변수
@@ -165,14 +179,23 @@ busan_dartrip/
 │   └── api/
 │       └── tour/route.ts       GET /api/tour — 관광공사 areaBasedList2 조회
 ├── lib/
-│   ├── tourapi.ts              관광공사 KorService2 호출 (서버 전용)
+│   ├── tourapi.ts              웹 전용 창구 (server-only 표식만)
+│   ├── tourapi.core.ts         관광공사 KorService2 호출 본체
 │   ├── theme.ts                테마 4종 · 분류 규칙 적용기
 │   └── supabase.ts             Supabase 클라이언트 (anon / service_role)
+├── scripts/
+│   ├── lib/                    스크립트 공통 (환경변수 · 인자·표 · DB · 부산 상수 · 테마 규칙)
+│   └── report/
+│       └── pool-matrix.ts      다트 풀 실측 표 (npm run pool:matrix)
 ├── supabase/
 │   └── migrations/             DB 스키마 SQL
 ├── public/
 └── .env.example                환경변수 목록
 ```
+
+`lib/tourapi.ts` 와 `lib/tourapi.core.ts` 를 나눈 이유 — 스크립트(`scripts/`)는 Next 런타임
+밖 순수 Node 라서 `server-only` 를 import 하면 즉시 예외가 납니다. 그래서 실구현은 `core` 에
+두고, 웹 코드가 쓰는 `tourapi.ts` 에만 `server-only` 를 얹어 브라우저 번들 유출을 막습니다.
 
 앞으로 추가될 것: `app/throw` · `app/result/[throwId]` · `app/place/[placeId]` ·
 `app/submit` · `app/about` · `app/api/throw` · `app/api/pool/stats` ·
