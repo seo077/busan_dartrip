@@ -5,41 +5,31 @@
  *
  * 무엇을 세는가
  * -------------
- * `areaBasedList2` 가 돌려주는 부산 전역 장소를 전건 받아, 각 행의 `sigungucode` 와
- * `theme_map` 규칙으로 정한 테마를 교차해 칸마다 건수를 셉니다. 여기서 나오는 숫자가
+ * 각 행의 구·군과 테마를 교차해 칸마다 건수를 셉니다. 여기서 나오는 숫자가
  * 다트 §7.1 ①단계("해당 테마 건수 > 0 인 구·군 중 균등 랜덤")에서 **실제로 고를 수 있는
  * 구·군이 몇 개인지**를 그대로 보여 줍니다.
  *
- * DB 없이 돕니다
- * --------------
- * Supabase 마이그레이션을 아직 안 돌렸어도 실행됩니다. `.env.local` 의 `DATA_GO_KR_KEY`
- * 하나만 있으면 됩니다. 테마 규칙은 DB 의 `theme_map` 대신 **마이그레이션 SQL 안의 초기값
- * insert 구문**을 읽어서 씁니다(`scripts/lib/theme-rules.ts`). 규칙 값을 이 파일에 다시
- * 적지 않는 이유는 AD-2 — 매핑을 데이터로 뺀 결정이 무의미해지기 때문입니다.
+ * 두 가지 경로
+ * ------------
+ *   (기본)      관광공사 `areaBasedList2` 를 직접 호출해 셉니다. **DB 가 없어도 됩니다.**
+ *   `--from-db` `places` 표를 읽어서 셉니다. **여러 출처가 병합된 실제 다트 풀**입니다.
+ *               다트가 보는 것과 같은 조건(`status='published'`)으로 셉니다.
  *
- * 호출 수
- * -------
- *   areaCode2         1회   (구·군 코드·이름 목록)
- *   areaBasedList2    ceil(totalCount / 100)회
+ * `--from-db` 는 여기에 더해 **출처별 기여**와 **관광공사 단독 ↔ 병합 후 비교표**를
+ * 함께 냅니다. 비교표의 "단독" 열은 기억해 둔 값이 아니라 같은 `places` 에서
+ * `source='tourapi'` 만 걸러 그 자리에서 다시 센 값입니다.
  *
- * 2026-08-04 실측 `totalCount` 는 **725** 이므로(SYNC-6) 8회, 합계 **9회**입니다.
- * 관광공사 개발계정 한도는 1,000회/일이라 하루에 100번 넘게 돌려도 남습니다.
- * `--max-pages` 로 상한을 걸어 두어(기본 30) 응답이 이상해도 한도를 태우지 않습니다.
- *
- * 칸마다 `numOfRows=1` 로 `totalCount` 만 읽는 방법(16 × 4 = 64회)도 가능하지만
- * 여기서는 쓰지 않았습니다. 전건 순회가 **호출이 더 적고**(9회 < 64회), `cat1` 외의
- * 매칭 종류(`cat3`·`content_type`·`keyword`)까지 `classify()` 그대로 적용되며,
- * 미분류 건수와 그 원인 분류값까지 한 번에 나옵니다.
+ * 호출 수 (기본 경로)
+ * ------------------
+ *   areaCode2         1회
+ *   areaBasedList2    ceil(totalCount / 100)회 — 실측 725 기준 8회, 합계 9회
+ * `--from-db` 는 외부 호출 0회입니다.
  *
  * 실행
  * ----
  *   npm run pool:matrix
+ *   npm run pool:matrix -- --from-db
  *   npm run pool:matrix -- --page-size=100 --max-pages=30 --delay=200
- *
- * 옵션
- *   --page-size   한 번에 받는 건수 (1~100, 기본 100)
- *   --max-pages   순회 상한 페이지 수 (기본 30)
- *   --delay       페이지 사이 대기 ms (기본 200)
  */
 
 import {
@@ -59,11 +49,13 @@ import {
   type ThemeRule,
 } from "../../lib/theme";
 import { BUSAN_SIGUNGU_COUNT, isInBusanBox } from "../lib/busan";
-import { checkEnv, describeMissing } from "../lib/env";
+import { checkEnv, describeMissing, loadEnv } from "../lib/env";
+import { isDbConfigured, requireDb, selectAll } from "../lib/db";
 import { loadThemeRulesFromMigration } from "../lib/theme-rules";
 import {
   exitWithNotice,
   getNumber,
+  hasFlag,
   heading,
   num,
   parseArgs,
@@ -72,11 +64,22 @@ import {
   type Align,
 } from "../lib/cli";
 
+loadEnv();
+
 /** 2026-08-04 사용자 실행분에서 관측된 `areaBasedList2` totalCount (SYNC-6). 예상 호출 수 안내에만 씁니다. */
 const OBSERVED_TOTAL_COUNT = 725;
 
 /** 관광공사 개발계정 일일 호출 한도. 안내 문구에만 씁니다. */
 const DEV_ACCOUNT_DAILY_LIMIT = 1000;
+
+/* ── 집계 자료구조 ───────────────────────────────────────────────────────── */
+
+/** 세는 단위 하나 — "어느 구·군의 어느 테마인가" 만 있으면 됩니다. */
+interface Record_ {
+  sigunguCode: string | null;
+  theme: ThemeKey | null;
+  source: string;
+}
 
 interface Cell {
   code: string;
@@ -89,35 +92,207 @@ interface Cell {
   rawTotal: number;
 }
 
+interface Matrix {
+  rows: Cell[];
+  themeTotals: Record<ThemeKey, number>;
+  grandThemed: number;
+  grandUnclassified: number;
+  grandRaw: number;
+  /** 구·군 코드가 없어 어느 행에도 못 들어간 건수 */
+  noSigungu: number;
+  zeroPairs: Array<{ sigungu: string; theme: ThemeKey }>;
+  cellCount: number;
+}
+
+function emptyThemeRecord(): Record<ThemeKey, number> {
+  const o = {} as Record<ThemeKey, number>;
+  for (const key of THEME_KEYS) o[key] = 0;
+  return o;
+}
+
 function emptyCell(code: string, name: string): Cell {
-  const byTheme = {} as Record<ThemeKey, number>;
-  for (const key of THEME_KEYS) byTheme[key] = 0;
-  return { code, name, byTheme, unclassified: 0, themedTotal: 0, rawTotal: 0 };
+  return {
+    code,
+    name,
+    byTheme: emptyThemeRecord(),
+    unclassified: 0,
+    themedTotal: 0,
+    rawTotal: 0,
+  };
 }
 
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(Math.max(value, min), max);
-}
-
-/** 구·군 코드는 숫자 문자열입니다. 숫자로 읽히면 숫자순, 아니면 문자순으로 정렬합니다. */
+/** 구·군 코드는 숫자이거나 slug 입니다. 숫자로 읽히면 숫자순, 아니면 문자순. */
 function compareCode(a: string, b: string): number {
   const na = Number(a);
   const nb = Number(b);
   if (Number.isFinite(na) && Number.isFinite(nb)) return na - nb;
-  return a.localeCompare(b);
+  return a.localeCompare(b, "ko");
 }
+
+/**
+ * 레코드 목록을 64칸 표로 접습니다.
+ * `seedRows` 에 구·군 목록을 미리 넣어 두면 **장소가 0건인 구·군도 행으로 남습니다.**
+ * 이 행이 사라지면 "고를 수 있는 구·군" 분모가 조용히 줄어듭니다.
+ */
+function buildMatrix(
+  records: Record_[],
+  seedRows: Array<{ code: string; name: string }>,
+): Matrix {
+  const cells = new Map<string, Cell>();
+  for (const s of seedRows) cells.set(s.code, emptyCell(s.code, s.name));
+
+  let noSigungu = 0;
+
+  for (const r of records) {
+    if (r.sigunguCode === null) {
+      noSigungu += 1;
+      continue;
+    }
+    let cell = cells.get(r.sigunguCode);
+    if (!cell) {
+      cell = emptyCell(r.sigunguCode, `(이름 미확인 · 코드 ${r.sigunguCode})`);
+      cells.set(r.sigunguCode, cell);
+    }
+    cell.rawTotal += 1;
+    if (r.theme === null) cell.unclassified += 1;
+    else {
+      cell.byTheme[r.theme] += 1;
+      cell.themedTotal += 1;
+    }
+  }
+
+  const rows = [...cells.values()].sort((a, b) => compareCode(a.code, b.code));
+
+  const themeTotals = emptyThemeRecord();
+  let grandThemed = 0;
+  let grandUnclassified = 0;
+  let grandRaw = 0;
+  for (const cell of rows) {
+    for (const key of THEME_KEYS) themeTotals[key] += cell.byTheme[key];
+    grandThemed += cell.themedTotal;
+    grandUnclassified += cell.unclassified;
+    grandRaw += cell.rawTotal;
+  }
+
+  const zeroPairs: Array<{ sigungu: string; theme: ThemeKey }> = [];
+  for (const cell of rows) {
+    for (const key of THEME_KEYS) {
+      if (cell.byTheme[key] === 0) zeroPairs.push({ sigungu: cell.name, theme: key });
+    }
+  }
+
+  return {
+    rows,
+    themeTotals,
+    grandThemed,
+    grandUnclassified,
+    grandRaw,
+    noSigungu,
+    zeroPairs,
+    cellCount: rows.length * THEME_KEYS.length,
+  };
+}
+
+/** 테마별로 고를 수 있는 구·군 수 — §7.1 ①단계의 후보 수. */
+function availableSigungu(m: Matrix, theme: ThemeKey): number {
+  return m.rows.filter((c) => c.byTheme[theme] > 0).length;
+}
+
+function availableAny(m: Matrix): number {
+  return m.rows.filter((c) => c.themedTotal > 0).length;
+}
+
+/* ── 출력 ────────────────────────────────────────────────────────────────── */
+
+function printMatrix(m: Matrix, title: string): void {
+  console.log(section(`${title} (${num(m.rows.length)} × ${THEME_KEYS.length} = ${num(m.cellCount)}칸)`));
+
+  const header = [
+    "구·군",
+    ...THEME_KEYS.map((k) => THEME_LABELS[k]),
+    "4테마 합",
+    "미분류",
+    "원본 합",
+  ];
+  const align: Align[] = ["left", ...header.slice(1).map((): Align => "right")];
+
+  const body = m.rows.map((cell) => [
+    cell.name,
+    ...THEME_KEYS.map((k) => num(cell.byTheme[k])),
+    num(cell.themedTotal),
+    num(cell.unclassified),
+    num(cell.rawTotal),
+  ]);
+  body.push([
+    "합계",
+    ...THEME_KEYS.map((k) => num(m.themeTotals[k])),
+    num(m.grandThemed),
+    num(m.grandUnclassified),
+    num(m.grandRaw),
+  ]);
+
+  console.log("");
+  console.log(renderTable(header, body, align));
+}
+
+function printZeroAndCandidates(m: Matrix): void {
+  console.log(section("0건 조합"));
+  console.log("");
+  console.log(
+    `  0건 조합 수   ${num(m.zeroPairs.length)} / ${num(m.cellCount)}칸 ` +
+      `(${((m.zeroPairs.length / m.cellCount) * 100).toFixed(1)}%)`,
+  );
+  console.log(`  1건 이상 칸   ${num(m.cellCount - m.zeroPairs.length)}칸`);
+
+  console.log("");
+  console.log("  테마별로 고를 수 있는 구·군 수 — 다트 §7.1 ①단계의 후보 수");
+  const candidateRows = THEME_KEYS.map((k) => {
+    const available = availableSigungu(m, k);
+    return [
+      THEME_LABELS[k],
+      `${num(available)} / ${num(m.rows.length)}`,
+      num(m.themeTotals[k]),
+      m.themeTotals[k] > 0 && available > 0 ? (m.themeTotals[k] / available).toFixed(1) : "-",
+    ];
+  });
+  const anyAvailable = availableAny(m);
+  candidateRows.push([
+    "전체(테마 미선택)",
+    `${num(anyAvailable)} / ${num(m.rows.length)}`,
+    num(m.grandThemed),
+    m.grandThemed > 0 && anyAvailable > 0 ? (m.grandThemed / anyAvailable).toFixed(1) : "-",
+  ]);
+  console.log("");
+  console.log(
+    renderTable(
+      ["테마", "고를 수 있는 구·군", "총 건수", "구·군당 평균"],
+      candidateRows,
+      ["left", "right", "right", "right"],
+    ),
+  );
+
+  if (m.zeroPairs.length > 0) {
+    console.log("");
+    console.log("  0건 조합 목록");
+    for (const key of THEME_KEYS) {
+      const names = m.zeroPairs.filter((p) => p.theme === key).map((p) => p.sigungu);
+      if (names.length === 0) continue;
+      console.log(`    ${THEME_LABELS[key]} (${num(names.length)}) — ${names.join(" · ")}`);
+    }
+  }
+}
+
+/* ── 경로 A. 관광공사 API 직접 ───────────────────────────────────────────── */
 
 function describeTourApiError(e: TourApiError): string {
   const guide: Record<string, string> = {
     missing_key:
       "`.env.local` 의 DATA_GO_KR_KEY 가 비어 있습니다. 공공데이터포털 마이페이지 > 일반 인증키 값을 넣어 주세요.",
-    network:
-      "공공데이터포털에 연결하지 못했습니다. 네트워크 상태를 확인하고 잠시 뒤 다시 실행해 주세요.",
+    network: "공공데이터포털에 연결하지 못했습니다. 네트워크 상태를 확인하고 잠시 뒤 다시 실행해 주세요.",
     http: "공공데이터포털이 정상 상태 코드로 답하지 않았습니다. 잠시 뒤 다시 실행해 주세요.",
     not_json:
       "응답이 JSON 이 아닙니다. 서비스키가 이 서비스(KorService2)에 활용신청돼 있는지, 오늘 호출 한도를 넘기지 않았는지 확인해 주세요.",
-    api_error:
-      "포털이 오류로 답했습니다. 서비스키 승인 여부와 활용신청한 오퍼레이션 목록을 확인해 주세요.",
+    api_error: "포털이 오류로 답했습니다. 서비스키 승인 여부와 활용신청한 오퍼레이션 목록을 확인해 주세요.",
   };
   const lines = [`호출에 실패했습니다: ${e.message}`, "", guide[e.reason] ?? ""];
   if (e.detail) {
@@ -126,22 +301,19 @@ function describeTourApiError(e: TourApiError): string {
   return lines.filter((l) => l !== "").join("\n");
 }
 
-async function main(): Promise<void> {
-  const args = parseArgs();
-  const pageSize = clamp(Math.trunc(getNumber(args, "page-size", 100)), 1, 100);
+async function runFromApi(args: ReturnType<typeof parseArgs>): Promise<void> {
+  const pageSize = Math.min(Math.max(Math.trunc(getNumber(args, "page-size", 100)), 1), 100);
   const maxPages = Math.max(1, Math.trunc(getNumber(args, "max-pages", 30)));
   const delayMs = Math.max(0, Math.trunc(getNumber(args, "delay", 200)));
 
-  console.log(heading("다트 풀 실측 — 부산 구·군 × 테마"));
-
-  // ── 실행 조건 ───────────────────────────────────────────────────────────
   const env = checkEnv(["DATA_GO_KR_KEY"]);
   if (!env.ok) {
     exitWithNotice(
       [
         describeMissing(env.missing),
         "",
-        "이 스크립트는 DB 없이 API 만으로 돌아갑니다. Supabase 값은 없어도 됩니다.",
+        "이 경로는 DB 없이 API 만으로 돌아갑니다. Supabase 값은 없어도 됩니다.",
+        "이미 백필을 마쳤다면 `--from-db` 로 병합된 실제 다트 풀을 볼 수 있습니다.",
       ].join("\n"),
       2,
     );
@@ -149,27 +321,24 @@ async function main(): Promise<void> {
 
   const expectedListCalls = Math.ceil(OBSERVED_TOTAL_COUNT / pageSize);
   console.log("");
+  console.log(`  집계 대상     관광공사 areaBasedList2 (부산명소 등 다른 출처는 안 들어갑니다)`);
   console.log(`  서비스        ${TOUR_API_BASE}`);
   console.log(`  areaCode      ${BUSAN_AREA_CODE} (부산)`);
   console.log(`  페이지 크기   ${pageSize}건 · 순회 상한 ${maxPages}페이지`);
   console.log("");
-  console.log("  예상 호출 수  areaCode2 1회 + areaBasedList2 ceil(totalCount / 페이지크기)회");
   console.log(
-    `                2026-08-04 실측 totalCount ${num(OBSERVED_TOTAL_COUNT)} 기준 → ` +
-      `총 ${num(expectedListCalls + 1)}회 (상한 ${num(maxPages + 1)}회)`,
-  );
-  console.log(
-    `                관광공사 개발계정 한도 ${num(DEV_ACCOUNT_DAILY_LIMIT)}회/일`,
+    `  예상 호출 수  실측 totalCount ${num(OBSERVED_TOTAL_COUNT)} 기준 총 ${num(expectedListCalls + 1)}회 ` +
+      `(개발계정 한도 ${num(DEV_ACCOUNT_DAILY_LIMIT)}회/일)`,
   );
 
-  // ── 테마 규칙 ───────────────────────────────────────────────────────────
+  // 테마 규칙 — DB 없이 돌아야 하므로 마이그레이션 SQL 초기값을 읽습니다.
   const loaded = loadThemeRulesFromMigration();
   if (loaded.rules.length === 0) {
     exitWithNotice(
       [
         "테마 매핑 규칙을 한 줄도 읽지 못했습니다.",
         "",
-        "이 스크립트는 `supabase/migrations/*.sql` 안의 `insert into theme_map ... values (...)`",
+        "이 경로는 `supabase/migrations/*.sql` 안의 `insert into theme_map ... values (...)`",
         "구문을 읽어서 규칙을 얻습니다. 아래를 확인해 주세요.",
         "  - 저장소 루트에서 실행했는지 (npm run pool:matrix 로 실행하면 항상 루트입니다)",
         "  - supabase/migrations/ 에 초기 스키마 SQL 이 있는지",
@@ -185,25 +354,21 @@ async function main(): Promise<void> {
     `  테마 규칙     ${loaded.origin}${loaded.file ? ` (${loaded.file})` : ""} — ` +
       `전체 ${num(loaded.rules.length)}행 중 관광정보(tourapi) ${num(tourRules.length)}행 적용`,
   );
-
   if (tourRules.length === 0) {
     exitWithNotice(
       [
         "관광정보(source='tourapi') 규칙이 한 줄도 없습니다.",
         "규칙이 없으면 모든 장소가 미분류가 되어 표가 전부 0이 됩니다.",
-        "마이그레이션 SQL 의 theme_map 초기값을 확인해 주세요.",
       ].join("\n"),
       2,
     );
   }
 
-  // ── 1. 구·군 목록 (areaCode2) ───────────────────────────────────────────
+  // 1. 구·군 목록
   console.log(section("1. 구·군 목록 조회 (areaCode2)"));
-
   let areaCodes: AreaCodeItem[] = [];
   let areaCodeCalls = 0;
   let areaCodeNote = "";
-
   try {
     areaCodes = await fetchAreaCodeList();
     areaCodeCalls = 1;
@@ -222,25 +387,21 @@ async function main(): Promise<void> {
       "장소가 한 건도 없는 구·군은 아예 행으로 보이지 않습니다.";
     console.log(`  실패: ${e instanceof Error ? e.message : String(e)}`);
     console.log(`  ${areaCodeNote}`);
-    console.log("  (이 오퍼레이션은 설계상 아직 미확정 항목입니다 — U-1)");
   }
 
-  // ── 2. 장소 전건 수집 (areaBasedList2) ──────────────────────────────────
+  // 2. 장소 수집
   console.log(section("2. 장소 수집 (areaBasedList2)"));
-
   let result;
   try {
     result = await iterateAreaBasedList({
       pageSize,
       maxPages,
       delayMs,
-      onPage: (p) => {
+      onPage: (p) =>
         console.log(
           `  ${String(p.pageNo).padStart(2, " ")}/${String(p.totalPages).padStart(2, " ")} 페이지 · ` +
-            `받은 ${String(p.fetched).padStart(3, " ")}건 · ` +
             `누적 ${num(p.accumulated)} / ${num(p.totalCount)}`,
-        );
-      },
+        ),
     });
   } catch (e) {
     if (e instanceof TourApiError) exitWithNotice(describeTourApiError(e), 3);
@@ -252,12 +413,9 @@ async function main(): Promise<void> {
   console.log(`  totalCount        ${num(result.totalCount)}`);
   console.log(`  수집한 장소       ${num(result.items.length)}건`);
   console.log(`  showflag 로 제외  ${num(result.filteredOut)}건`);
-  console.log(`  실제 호출 수      ${num(totalCalls)}회 (areaCode2 ${num(areaCodeCalls)} + areaBasedList2 ${num(result.calls)})`);
+  console.log(`  실제 호출 수      ${num(totalCalls)}회`);
   if (result.truncated) {
-    console.log(
-      `  (주의) 순회 상한 ${num(maxPages)}페이지에 걸려 중간에 멈췄습니다. ` +
-        "--max-pages 를 올려 다시 실행해 주세요. 아래 표는 받은 만큼만 센 것입니다.",
-    );
+    console.log(`  (주의) 순회 상한 ${num(maxPages)}페이지에 걸려 중간에 멈췄습니다.`);
   }
   if (result.items.length === 0) {
     exitWithNotice(
@@ -266,37 +424,19 @@ async function main(): Promise<void> {
         "",
         "서비스키가 이 서비스(KorService2)에 활용신청돼 있는지,",
         `areaCode 값(${BUSAN_AREA_CODE})이 부산이 맞는지 확인해 주세요.`,
-        "부산 코드가 다르면 .env.local 에 TOUR_API_AREA_CODE 를 넣어 덮어쓸 수 있습니다.",
       ].join("\n"),
       3,
     );
   }
 
-  // ── 3. 집계 ─────────────────────────────────────────────────────────────
-  const cells = new Map<string, Cell>();
-  for (const area of areaCodes) cells.set(area.code, emptyCell(area.code, area.name));
-
-  let noSigungu = 0;
-  let outOfBox = 0;
-  let noCoordinate = 0;
-  /** 구·군 코드 유무와 무관하게 센 미분류 전체 건수 */
-  let totalUnclassified = 0;
-
-  /**
-   * cat1 값별 분포. 어떤 원본 분류가 몇 건이고 어느 테마에 붙었는지를 그대로 보여 줍니다.
-   * 어떤 테마의 건수가 적을 때 그것이 매핑이 빠진 탓인지 데이터 자체가 적은 탓인지는
-   * 이 표를 봐야 갈립니다.
-   */
+  // 3. 집계
+  const records: Record_[] = [];
   const byCat1 = new Map<
     string,
-    {
-      cat1: string;
-      count: number;
-      theme: ThemeKey | null;
-      matchedBy: string | null;
-      sample: string;
-    }
+    { cat1: string; count: number; theme: ThemeKey | null; matchedBy: string | null; sample: string }
   >();
+  let outOfBox = 0;
+  let noCoordinate = 0;
 
   for (const place of result.items as TourPlace[]) {
     if (place.lat === null || place.lng === null) noCoordinate += 1;
@@ -314,12 +454,8 @@ async function main(): Promise<void> {
       tourRules,
     );
 
-    if (verdict.theme === null) totalUnclassified += 1;
-
-    // 같은 cat1 이라도 다른 종류의 규칙(content_type 등)에 걸려 테마가 갈릴 수 있으므로
-    // cat1 하나가 아니라 (cat1, 결과 테마) 짝으로 셉니다.
     const cat1 = place.cat1 ?? "(cat1 없음)";
-    const cat1Key = `${cat1} ${verdict.theme ?? "-"}`;
+    const cat1Key = `${cat1} ${verdict.theme ?? "-"}`;
     const seen = byCat1.get(cat1Key);
     if (seen) seen.count += 1;
     else
@@ -331,227 +467,264 @@ async function main(): Promise<void> {
         sample: place.name,
       });
 
-    const code = place.sigunguCode;
-    if (code === null) {
-      noSigungu += 1;
-      continue;
-    }
-
-    let cell = cells.get(code);
-    if (!cell) {
-      cell = emptyCell(code, `(이름 미확인 · 코드 ${code})`);
-      cells.set(code, cell);
-    }
-
-    cell.rawTotal += 1;
-    if (verdict.theme === null) {
-      cell.unclassified += 1;
-    } else {
-      cell.byTheme[verdict.theme] += 1;
-      cell.themedTotal += 1;
-    }
+    records.push({ sigunguCode: place.sigunguCode, theme: verdict.theme, source: "tourapi" });
   }
 
-  const rows = [...cells.values()].sort((a, b) => compareCode(a.code, b.code));
-
-  // ── 4. 표 ───────────────────────────────────────────────────────────────
-  console.log(section(`3. 구·군 × 테마 (${num(rows.length)} × ${THEME_KEYS.length} = ${num(rows.length * THEME_KEYS.length)}칸)`));
-
-  const header = [
-    "구·군",
-    ...THEME_KEYS.map((k) => THEME_LABELS[k]),
-    "4테마 합",
-    "미분류",
-    "원본 합",
-  ];
-  const align: Align[] = ["left", ...header.slice(1).map((): Align => "right")];
-
-  const themeTotals = {} as Record<ThemeKey, number>;
-  for (const key of THEME_KEYS) themeTotals[key] = 0;
-  let grandThemed = 0;
-  let grandUnclassified = 0;
-  let grandRaw = 0;
-
-  const body = rows.map((cell) => {
-    for (const key of THEME_KEYS) themeTotals[key] += cell.byTheme[key];
-    grandThemed += cell.themedTotal;
-    grandUnclassified += cell.unclassified;
-    grandRaw += cell.rawTotal;
-    return [
-      cell.name,
-      ...THEME_KEYS.map((k) => num(cell.byTheme[k])),
-      num(cell.themedTotal),
-      num(cell.unclassified),
-      num(cell.rawTotal),
-    ];
-  });
-
-  body.push([
-    "합계",
-    ...THEME_KEYS.map((k) => num(themeTotals[k])),
-    num(grandThemed),
-    num(grandUnclassified),
-    num(grandRaw),
-  ]);
-
-  console.log("");
-  console.log(renderTable(header, body, align));
-
-  // ── 5. 0건 조합 ─────────────────────────────────────────────────────────
-  const cellCount = rows.length * THEME_KEYS.length;
-  const zeroPairs: Array<{ sigungu: string; theme: ThemeKey }> = [];
-  for (const cell of rows) {
-    for (const key of THEME_KEYS) {
-      if (cell.byTheme[key] === 0) zeroPairs.push({ sigungu: cell.name, theme: key });
-    }
-  }
-
-  console.log(section("4. 0건 조합"));
-  console.log("");
-  console.log(
-    `  0건 조합 수   ${num(zeroPairs.length)} / ${num(cellCount)}칸 ` +
-      `(${((zeroPairs.length / cellCount) * 100).toFixed(1)}%)`,
-  );
-  console.log(
-    `  1건 이상 칸   ${num(cellCount - zeroPairs.length)}칸`,
+  const matrix = buildMatrix(
+    records,
+    areaCodes.map((a) => ({ code: a.code, name: a.name })),
   );
 
-  console.log("");
-  console.log("  테마별로 고를 수 있는 구·군 수 — 다트 §7.1 ①단계의 후보 수");
-  const candidateRows = THEME_KEYS.map((k) => {
-    const available = rows.filter((c) => c.byTheme[k] > 0).length;
-    return [
-      THEME_LABELS[k],
-      `${num(available)} / ${num(rows.length)}`,
-      num(themeTotals[k]),
-      themeTotals[k] > 0 && available > 0
-        ? (themeTotals[k] / available).toFixed(1)
-        : "-",
-    ];
-  });
-  candidateRows.push([
-    "전체(테마 미선택)",
-    `${num(rows.filter((c) => c.themedTotal > 0).length)} / ${num(rows.length)}`,
-    num(grandThemed),
-    grandThemed > 0 && rows.filter((c) => c.themedTotal > 0).length > 0
-      ? (grandThemed / rows.filter((c) => c.themedTotal > 0).length).toFixed(1)
-      : "-",
-  ]);
-  console.log("");
-  console.log(
-    renderTable(
-      ["테마", "고를 수 있는 구·군", "총 건수", "구·군당 평균"],
-      candidateRows,
-      ["left", "right", "right", "right"],
-    ),
-  );
+  printMatrix(matrix, "3. 구·군 × 테마");
+  printZeroAndCandidates(matrix);
 
-  if (zeroPairs.length > 0) {
-    console.log("");
-    console.log("  0건 조합 목록");
-    for (const key of THEME_KEYS) {
-      const names = zeroPairs.filter((p) => p.theme === key).map((p) => p.sigungu);
-      if (names.length === 0) continue;
-      console.log(`    ${THEME_LABELS[key]} (${num(names.length)}) — ${names.join(" · ")}`);
-    }
-  }
-
-  // ── 6. 최다·최소 조합 ───────────────────────────────────────────────────
-  const allPairs = rows.flatMap((c) =>
-    THEME_KEYS.map((k) => ({ sigungu: c.name, theme: k, count: c.byTheme[k] })),
-  );
-  const sorted = [...allPairs].sort((a, b) => b.count - a.count);
-  const nonZero = sorted.filter((p) => p.count > 0);
-
-  console.log(section("5. 최다 · 최소 조합"));
+  // 원본 분류값 분포
+  console.log(section("원본 분류값(cat1) 분포 — 어떤 값이 어느 테마로 갔는가"));
   console.log("");
-  const top = sorted.slice(0, 5);
-  console.log("  최다 5칸");
-  for (const p of top) {
-    console.log(`    ${p.sigungu} × ${THEME_LABELS[p.theme]} — ${num(p.count)}건`);
-  }
-  if (nonZero.length > 0) {
-    console.log("");
-    console.log("  0건이 아닌 칸 중 최소 5칸");
-    for (const p of nonZero.slice(-5).reverse()) {
-      console.log(`    ${p.sigungu} × ${THEME_LABELS[p.theme]} — ${num(p.count)}건`);
-    }
-  }
-
-  // ── 7. 원본 분류값 분포 ─────────────────────────────────────────────────
-  console.log(section("6. 원본 분류값(cat1) 분포 — 어떤 값이 어느 테마로 갔는가"));
-  console.log("");
-  console.log(
-    "  어떤 테마의 건수가 적을 때, 그것이 매핑 규칙이 빠진 탓인지 원본 데이터가 원래 적은 탓인지는",
-  );
+  console.log("  어떤 테마의 건수가 적을 때, 매핑 규칙이 빠진 탓인지 원본이 원래 적은 탓인지는");
   console.log("  이 표에서 갈립니다. '미분류' 행이 곧 규칙이 안 붙은 값입니다.");
   console.log("");
-
-  const cat1Rows = [...byCat1.values()]
-    .sort((a, b) => b.count - a.count)
-    .map((v) => [
-      v.cat1,
-      num(v.count),
-      v.theme === null ? "미분류" : THEME_LABELS[v.theme],
-      v.matchedBy ?? "-",
-      v.sample,
-    ]);
   console.log(
     renderTable(
       ["cat1", "건수", "붙은 테마", "맞은 규칙", "예시 장소"],
-      cat1Rows,
+      [...byCat1.values()]
+        .sort((a, b) => b.count - a.count)
+        .map((v) => [
+          v.cat1,
+          num(v.count),
+          v.theme === null ? "미분류" : THEME_LABELS[v.theme],
+          v.matchedBy ?? "-",
+          v.sample,
+        ]),
       ["left", "right", "left", "left", "left"],
     ),
   );
 
+  console.log(section("데이터 점검"));
   console.log("");
-  if (totalUnclassified === 0) {
-    console.log("  미분류가 없습니다. 수집한 장소 전부가 4테마 중 하나에 붙었습니다.");
-  } else {
-    console.log(
-      `  미분류 ${num(totalUnclassified)}건은 다트 풀에 들어가지 않습니다 ` +
-        "(places.status = 'unclassified' — 설계 §4.2).",
-    );
-    if (totalUnclassified !== grandUnclassified) {
-      console.log(
-        `  이 중 ${num(totalUnclassified - grandUnclassified)}건은 구·군 코드가 없어 표에도 안 들어갔습니다.`,
-      );
-    }
-  }
-
-  // ── 8. 데이터 점검 ──────────────────────────────────────────────────────
-  console.log(section("7. 데이터 점검"));
-  console.log("");
-  console.log(`  표의 행 수         ${num(rows.length)} (부산 구·군 ${BUSAN_SIGUNGU_COUNT})`);
-  console.log(`  구·군 코드 없음    ${num(noSigungu)}건 — 표 어느 행에도 못 들어간 장소`);
+  console.log(`  표의 행 수         ${num(matrix.rows.length)} (부산 구·군 ${BUSAN_SIGUNGU_COUNT})`);
+  console.log(`  구·군 코드 없음    ${num(matrix.noSigungu)}건`);
   console.log(`  좌표 없음          ${num(noCoordinate)}건`);
   console.log(`  부산 범위 밖 좌표  ${num(outOfBox)}건 — 0이 아니면 mapx/mapy 뒤바뀜을 의심`);
   console.log(`  totalCount 대비    ${num(result.items.length)} / ${num(result.totalCount)}`);
-  if (areaCodeNote !== "") {
-    console.log("");
-    console.log(`  (참고) ${areaCodeNote}`);
-  }
-
-  // ── 9. 읽는 법 ──────────────────────────────────────────────────────────
-  console.log(section("8. 각 숫자가 무엇을 센 것인가"));
-  console.log("");
-  console.log("  칸 하나          그 구·군에서 그 테마로 분류된 장소 수. 사용자가 구·군과 테마를");
-  console.log("                   둘 다 고른 채 다트를 던질 때 뽑히는 후보 수입니다.");
-  console.log("  4테마 합         테마를 안 고르고 던질 때 그 구·군에서 뽑히는 후보 수입니다.");
-  console.log("  미분류           theme_map 규칙 어디에도 안 붙은 장소 수. 다트 풀에 들어가지");
-  console.log("                   않으므로 어느 테마 칸에도 세지 않았습니다.");
-  console.log("  0건 조합 수      64칸 중 후보가 하나도 없는 칸의 수입니다.");
-  console.log("  고를 수 있는     그 테마를 골랐을 때 §7.1 ①단계가 균등 랜덤으로 집을 수 있는");
-  console.log("  구·군            구·군의 수입니다.");
+  if (areaCodeNote !== "") console.log(`\n  (참고) ${areaCodeNote}`);
   console.log("");
   console.log(`  이번 실행에 쓴 호출: ${num(totalCalls)}회 / 개발계정 한도 ${num(DEV_ACCOUNT_DAILY_LIMIT)}회 하루`);
   console.log("");
+  console.log("  이 표는 관광공사 단독입니다. 백필을 마쳤다면 `--from-db` 로 병합 후를 보십시오.");
+  console.log("");
+}
+
+/* ── 경로 B. DB (병합된 실제 다트 풀) ────────────────────────────────────── */
+
+interface DbPlace {
+  source: string;
+  theme: ThemeKey | null;
+  status: string;
+  sigungu_code: string;
+}
+
+async function runFromDb(): Promise<void> {
+  if (!isDbConfigured()) {
+    exitWithNotice(
+      [
+        "`--from-db` 는 Supabase 접속 정보가 필요합니다.",
+        "",
+        "접속 정보 없이 관광공사 단독으로 세려면 옵션 없이 실행하십시오.",
+        "  npm run pool:matrix",
+      ].join("\n"),
+      2,
+    );
+  }
+
+  const client = requireDb();
+
+  const places = await selectAll<DbPlace>(
+    client,
+    "places",
+    "source, theme, status, sigungu_code",
+  );
+  const sigungu = await selectAll<{ code: string; name: string }>(client, "sigungu", "code, name");
+
+  console.log("");
+  console.log("  집계 대상     places 표 (병합된 실제 다트 풀)");
+  console.log(`  구·군 마스터  ${num(sigungu.length)}행 (부산 ${BUSAN_SIGUNGU_COUNT})`);
+  console.log(`  places        ${num(places.length)}행`);
+  console.log("  외부 호출     0회");
+
+  if (places.length === 0) {
+    exitWithNotice(
+      [
+        "places 가 비어 있습니다. 백필을 먼저 돌려 주세요.",
+        "",
+        "  npm run backfill:sigungu",
+        "  npm run backfill:tourapi",
+        "  npm run backfill:busan",
+      ].join("\n"),
+      2,
+    );
+  }
+  if (sigungu.length === 0) {
+    exitWithNotice("sigungu 표가 비어 있습니다. `npm run backfill:sigungu` 를 먼저 돌려 주세요.", 2);
+  }
+
+  const seed = sigungu.map((s) => ({ code: s.code, name: s.name }));
+
+  /**
+   * 다트가 보는 것과 같은 조건으로 셉니다.
+   * `status='published'` 가 아닌 행(미분류 보관함)은 테마 칸에 안 들어가고 '미분류' 로만 셉니다.
+   */
+  const toRecord = (p: DbPlace): Record_ => ({
+    sigunguCode: p.sigungu_code,
+    theme: p.status === "published" ? p.theme : null,
+    source: p.source,
+  });
+
+  const merged = buildMatrix(places.map(toRecord), seed);
+  const tourOnly = buildMatrix(
+    places.filter((p) => p.source === "tourapi").map(toRecord),
+    seed,
+  );
+
+  // 1. 출처별
+  console.log(section("1. 출처별 건수"));
+  const sources = [...new Set(places.map((p) => p.source))].sort();
+  const sourceRows = sources.map((s) => {
+    const rows = places.filter((p) => p.source === s);
+    const pub = rows.filter((p) => p.status === "published");
+    return [
+      s,
+      num(rows.length),
+      num(pub.length),
+      num(rows.length - pub.length),
+      ...THEME_KEYS.map((k) => num(pub.filter((p) => p.theme === k).length)),
+    ];
+  });
+  sourceRows.push([
+    "합계",
+    num(places.length),
+    num(places.filter((p) => p.status === "published").length),
+    num(places.filter((p) => p.status !== "published").length),
+    ...THEME_KEYS.map((k) =>
+      num(places.filter((p) => p.status === "published" && p.theme === k).length),
+    ),
+  ]);
+  console.log("");
+  console.log(
+    renderTable(
+      ["출처", "전체", "다트 풀", "미분류", ...THEME_KEYS.map((k) => THEME_LABELS[k])],
+      sourceRows,
+      ["left", "right", "right", "right", "right", "right", "right", "right"] as Align[],
+    ),
+  );
+
+  // 2. 64칸 표
+  printMatrix(merged, "2. 구·군 × 테마 — 병합 후");
+  printZeroAndCandidates(merged);
+
+  // 3. 비교표
+  console.log(section("관광공사 단독 → 병합 후"));
+  console.log("");
+  console.log("  '단독' 열은 같은 places 에서 source='tourapi' 만 걸러 그 자리에서 다시 센 값입니다.");
+  console.log("");
+
+  const cmpRows = THEME_KEYS.map((k) => [
+    THEME_LABELS[k],
+    num(tourOnly.themeTotals[k]),
+    num(merged.themeTotals[k]),
+    (merged.themeTotals[k] - tourOnly.themeTotals[k] >= 0 ? "+" : "") +
+      num(merged.themeTotals[k] - tourOnly.themeTotals[k]),
+    `${num(availableSigungu(tourOnly, k))} / ${num(tourOnly.rows.length)}`,
+    `${num(availableSigungu(merged, k))} / ${num(merged.rows.length)}`,
+  ]);
+  cmpRows.push([
+    "전체(테마 미선택)",
+    num(tourOnly.grandThemed),
+    num(merged.grandThemed),
+    (merged.grandThemed - tourOnly.grandThemed >= 0 ? "+" : "") +
+      num(merged.grandThemed - tourOnly.grandThemed),
+    `${num(availableAny(tourOnly))} / ${num(tourOnly.rows.length)}`,
+    `${num(availableAny(merged))} / ${num(merged.rows.length)}`,
+  ]);
+  cmpRows.push([
+    "미분류 보관함",
+    num(tourOnly.grandUnclassified),
+    num(merged.grandUnclassified),
+    (merged.grandUnclassified - tourOnly.grandUnclassified >= 0 ? "+" : "") +
+      num(merged.grandUnclassified - tourOnly.grandUnclassified),
+    "-",
+    "-",
+  ]);
+  cmpRows.push([
+    "0건 조합",
+    `${num(tourOnly.zeroPairs.length)} / ${num(tourOnly.cellCount)}`,
+    `${num(merged.zeroPairs.length)} / ${num(merged.cellCount)}`,
+    (merged.zeroPairs.length - tourOnly.zeroPairs.length >= 0 ? "+" : "") +
+      num(merged.zeroPairs.length - tourOnly.zeroPairs.length),
+    "-",
+    "-",
+  ]);
+
+  console.log(
+    renderTable(
+      ["구분", "관광공사 단독", "병합 후", "증감", "단독 후보 구·군", "병합 후보 구·군"],
+      cmpRows,
+      ["left", "right", "right", "right", "right", "right"] as Align[],
+    ),
+  );
+
+  // 4. 테마 × 출처 기여
+  console.log(section("테마별 출처 기여"));
+  console.log("");
+  const contribRows = THEME_KEYS.map((k) => [
+    THEME_LABELS[k],
+    ...sources.map((s) =>
+      num(
+        places.filter((p) => p.source === s && p.status === "published" && p.theme === k).length,
+      ),
+    ),
+    num(merged.themeTotals[k]),
+  ]);
+  console.log(
+    renderTable(
+      ["테마", ...sources, "합계"],
+      contribRows,
+      ["left", ...sources.map((): Align => "right"), "right"] as Align[],
+    ),
+  );
+
+  console.log("");
+  console.log("  어느 테마가 어느 출처에 기대고 있는지를 보여 줍니다.");
+  console.log("  한 출처에만 기댄 테마는 그 출처가 흔들리면 함께 흔들립니다.");
+
+  console.log(section("읽는 법"));
+  console.log("");
+  console.log("  칸 하나          그 구·군에서 그 테마로 분류된 장소 수. 구·군과 테마를 둘 다 고른 채");
+  console.log("                   다트를 던질 때 뽑히는 후보 수입니다.");
+  console.log("  4테마 합         테마를 안 고르고 던질 때 그 구·군에서 뽑히는 후보 수입니다.");
+  console.log("  미분류           theme_map 규칙 어디에도 안 붙은 장소 수. 다트 풀에 들어가지 않습니다.");
+  console.log("  0건 조합 수      64칸 중 후보가 하나도 없는 칸의 수입니다.");
+  console.log("");
+  console.log("  이 표는 관측값입니다. 테마 구조를 바꿀지는 사용자 결정 사항입니다.");
+  console.log("");
+}
+
+/* ── 진입점 ──────────────────────────────────────────────────────────────── */
+
+async function main(): Promise<void> {
+  const args = parseArgs();
+  const fromDb = hasFlag(args, "from-db");
+
+  console.log(heading("다트 풀 실측 — 부산 구·군 × 테마"));
+
+  if (fromDb) await runFromDb();
+  else await runFromApi(args);
 }
 
 main().catch((e) => {
   console.log("");
   console.log("예상하지 못한 오류로 멈췄습니다.");
-  console.log(`  ${e instanceof Error ? e.stack ?? e.message : String(e)}`);
+  console.log(`  ${e instanceof Error ? (e.stack ?? e.message) : String(e)}`);
   console.log("");
   process.exit(1);
 });
