@@ -351,7 +351,7 @@ async function runFromApi(args: ReturnType<typeof parseArgs>): Promise<void> {
   const tourRules: ThemeRule[] = loaded.rules.filter((r) => r.source === "tourapi");
   console.log("");
   console.log(
-    `  테마 규칙     ${loaded.origin}${loaded.file ? ` (${loaded.file})` : ""} — ` +
+    `  테마 규칙     ${loaded.origin} (${(loaded.files ?? []).length}개 파일 순서 적용) — ` +
       `전체 ${num(loaded.rules.length)}행 중 관광정보(tourapi) ${num(tourRules.length)}행 적용`,
   );
   if (tourRules.length === 0) {
