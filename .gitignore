@@ -41,3 +41,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# 손으로 돌려 보는 임시 확인 스크립트 (저장소에 남기지 않습니다)
+tmp_*
+
