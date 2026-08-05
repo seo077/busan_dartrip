@@ -20,6 +20,7 @@ import { cache } from "react";
 import { notFound } from "next/navigation";
 
 import { DataSources } from "@/components/DataSources";
+import { NearbyList } from "@/components/result/NearbyList";
 import { ResultHero } from "@/components/result/ResultHero";
 import { ResultNotice } from "@/components/result/ResultNotice";
 import { DartError, loadThrowResult } from "@/lib/dart";
@@ -85,6 +86,8 @@ export default async function ResultPage({
         nearbyCount={nearby.length}
         rethrowHref={backToSetup}
       />
+
+      <NearbyList originName={place.name} items={nearby} rethrowHref={backToSetup} />
 
       <DataSources />
     </main>
