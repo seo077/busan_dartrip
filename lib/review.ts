@@ -31,6 +31,16 @@
  * 화면도 같은 규칙으로 작성 버튼을 감추지만, 판정은 여기서 한 번 더 합니다 — 브라우저를
  * 거치지 않고 이 경로로 바로 들어오는 요청이 있기 때문입니다.
  *
+ * 그리고 **마지막 판정은 DB 가 합니다** — 아래 조회는 읽는 순간과 쓰는 순간이 떨어져 있어,
+ * 같은 기기의 POST 두 건이 동시에 오면 둘 다 "없다" 를 읽고 둘 다 씁니다(더블탭). 조회로는
+ * 못 막는 틈이라 `reviews_place_author_uidx` 부분 유니크 인덱스를 두고
+ * (`supabase/migrations/20260805210000_reviews_unique_author.sql`), 인덱스에 걸린 삽입도
+ * **같은 `duplicate`** 로 받아 넘깁니다. 두 층의 답이 같아야 화면이 한 가지 안내만 알면
+ * 됩니다. 인덱스가 아직 적용되지 않은 DB 에서도 조회 쪽 판정이 그대로 동작합니다.
+ *
+ * 인덱스 조건(`author_ref <> 'anon:unknown'`)은 아래 `isIdentifiable()` 의 경계와 같은
+ * 값입니다. 한쪽만 고치면 화면·서버·DB 의 답이 갈립니다.
+ *
  * 서버 전용입니다. `server-only` 가 붙어 있어 클라이언트 컴포넌트가 import 하면 빌드가
  * 그 자리에서 멈춥니다(service_role 키 유출 차단).
  */
@@ -64,6 +74,24 @@ const ANONYMOUS_REF = "anon:unknown";
  */
 function isIdentifiable(authorRef: string): boolean {
   return authorRef !== ANONYMOUS_REF && AUTHOR_PATTERN.test(authorRef);
+}
+
+/** 부분 유니크 인덱스 이름. 마이그레이션 `20260805210000_reviews_unique_author.sql` 와 같은 값입니다. */
+const UNIQUE_INDEX = "reviews_place_author_uidx";
+
+/** Postgres 의 unique_violation. 인덱스에 걸린 삽입은 이 코드로 옵니다. */
+const UNIQUE_VIOLATION = "23505";
+
+/**
+ * 이 삽입 오류가 "이미 남겼다" 인가.
+ *
+ * `23505` 만으로 판정하지 않고 **인덱스 이름까지** 봅니다. `reviews` 에는 기본키도 유니크라,
+ * 코드만 보면 성격이 다른 충돌까지 "이미 남기셨어요" 로 답하게 됩니다. 우리가 만든 그
+ * 인덱스에 걸렸을 때만 중복으로 다루고, 나머지는 그대로 오류로 올려보냅니다.
+ */
+function isDuplicateInsert(error: { code?: string; message?: string; details?: string } | null) {
+  if (!error || error.code !== UNIQUE_VIOLATION) return false;
+  return `${error.message ?? ""} ${error.details ?? ""}`.includes(UNIQUE_INDEX);
 }
 
 /**
@@ -188,6 +216,10 @@ export type CreateReviewOutcome =
  *
  * 장소를 확인한 다음 **이미 남긴 기록이 있는지**를 봅니다(`duplicate`). 없는 장소를 두고
  * "이미 남기셨다" 고 답하지 않으려고 순서를 이렇게 둡니다.
+ *
+ * 그 조회를 통과했더라도 **삽입이 인덱스에 걸리면 같은 `duplicate`** 입니다 — 조회와 삽입
+ * 사이에 다른 요청이 먼저 쓴 경우입니다(파일 머리말 §"한 기기는 한 장소에 한 번"). 어느
+ * 쪽으로 걸리든 Route 는 `409 duplicate` 하나로 답합니다.
  */
 export async function createReview(
   placeId: string,
@@ -222,6 +254,10 @@ export async function createReview(
     })
     .select("id,body,photo_path,created_at")
     .single();
+
+  // 조회를 통과하고도 인덱스에 걸렸다면, 조회와 삽입 사이에 다른 요청이 먼저 쓴 것입니다.
+  // 사용자에게는 위 사전 조회에 걸린 것과 구분할 이유가 없는 같은 상황입니다.
+  if (isDuplicateInsert(error)) return { kind: "duplicate" };
 
   if (error || !data) {
     throw new ReviewError(
