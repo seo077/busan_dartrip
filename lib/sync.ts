@@ -37,6 +37,12 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getServiceClient, supabaseStatus } from "@/lib/supabase";
+import { sendAlert } from "@/lib/alert";
+import {
+  CONSECUTIVE_FAILURE_THRESHOLD,
+  STALE_AFTER_HOURS,
+  readSyncHealth,
+} from "@/lib/health";
 import { isInBusanBox } from "@/lib/geo";
 import {
   fetchAreaBasedSyncList,
@@ -78,6 +84,12 @@ const ENRICHMENT_TTL_DAYS = 7;
 
 /** `sync_runs` 보존 (§5.7 — 90일) */
 const SYNC_RUN_RETENTION_DAYS = 90;
+
+/**
+ * `rate_limits` 보존 (DF-4 — 2일).
+ * 가장 긴 창이 하루라 지난 창은 다시 볼 일이 없습니다. 사용자 데이터가 아니므로 짧게 둡니다.
+ */
+const RATE_LIMIT_RETENTION_DAYS = 2;
 
 // ── 날짜 (KST) ───────────────────────────────────────────────────────────────
 //
@@ -159,6 +171,8 @@ export interface CleanupCounts {
   throws: number;
   enrichment: number;
   syncRuns: number;
+  /** 지난 창의 상한 카운터 (DF-4). 표가 아직 없으면 0 입니다 */
+  rateLimits: number;
 }
 
 export interface AuditResult {
@@ -318,6 +332,70 @@ async function finishRun(
     .eq("id", id);
 }
 
+// ── ①-b 실패 알림 (§6.5 · DF-2) ──────────────────────────────────────────────
+//
+// `sync_runs` 를 남기는 것(DF-1)은 "나중에 볼 수 있게 해 두는 일" 이고, 여기는 **아무도
+// 안 보고 있을 때 사람을 부르는 일** 입니다. 심사 기간에 이 둘의 차이가 곧 서비스가 며칠
+// 죽어 있느냐 하루 만에 살아나느냐의 차이입니다.
+//
+// 판정 시점을 `finishRun` **앞**에 둔 이유
+// ---------------------------------------
+// 이번 실행의 결과는 아직 DB 에 없고 코드가 들고 있습니다. 이전 이력만 DB 에서 읽어
+// 여기서 얹으면 조회가 한 번, 쓰기도 한 번으로 끝납니다. 뒤에 두면 `finishRun` 으로 쓴 것을
+// 다시 읽고 알림 결과를 적으려고 또 쓰게 됩니다.
+//
+// `readSyncHealth()` 는 `running` 행을 건너뛰므로, 진행 중인 이번 실행의 행이 이전 이력
+// 계산에 섞이지 않습니다.
+//
+// **여기서 잡히지 않는 경우가 하나 있습니다** — 크론이 아예 안 도는 경우입니다. 이 함수도
+// 크론 안에 있어서 함께 안 돕니다. 그쪽은 `GET /api/health` 와 외부 감시가 맡습니다(§6.5 3행).
+//
+// 실패한 실행에서만 부릅니다 — 성공하면 연속 실패는 0 이 되고 마지막 성공은 방금이 되므로
+// §6.5 의 두 조건이 모두 성립하지 않습니다. 성공 경로에서 부르면 답이 정해진 조회만 늘어납니다.
+
+async function notifyOnFailure(db: SupabaseClient, detail: string | null): Promise<string | null> {
+  const prior = await readSyncHealth(db);
+  // 이력을 못 읽는 상태에서 알림을 지어내지 않습니다. 그 상황 자체는 상태 경로가 503 으로 잡습니다.
+  if (!prior.known) return null;
+
+  const consecutive = prior.consecutiveFailures + 1;
+  const stale = prior.stale;
+
+  let title: string | null = null;
+  const lines: string[] = [];
+
+  if (consecutive >= CONSECUTIVE_FAILURE_THRESHOLD) {
+    // §6.5 2행
+    title = `증분 동기화가 ${consecutive}회 연속 실패했습니다`;
+    if (detail) lines.push(`마지막 오류: ${detail}`);
+    lines.push(
+      prior.lastSuccessAt
+        ? `마지막 성공: ${prior.lastSuccessAt} (${prior.hoursSinceSuccess}시간 전)`
+        : "마지막 성공: 기록 없음",
+    );
+  } else if (stale) {
+    // §6.5 3행의 앱 안쪽 몫 — 크론이 며칠 쉬었다가 돌아온 경우가 여기서 잡힙니다.
+    title = `마지막 동기화 성공이 ${STALE_AFTER_HOURS}시간을 넘었습니다`;
+    lines.push(
+      prior.lastSuccessAt
+        ? `마지막 성공: ${prior.lastSuccessAt} (${prior.hoursSinceSuccess}시간 전)`
+        : "마지막 성공: 기록 없음 — 크론이 한 번도 성공한 적이 없습니다",
+    );
+    if (detail) lines.push(`이번 실행: ${detail}`);
+  }
+
+  if (!title) return null;
+
+  lines.push("상태 경로: /api/health");
+
+  const outcome = await sendAlert(title, lines);
+  // 보냈든 못 보냈든 `sync_runs` 에 남깁니다 — "알렸어야 했는데 못 알렸다" 가 사라지면
+  // 나중에 왜 아무도 몰랐는지를 되짚을 수 없습니다.
+  if (outcome === "sent") return `알림 발송 — ${title}`;
+  if (outcome === "skipped") return `알림 조건 충족(${title}) — ALERT_WEBHOOK_URL 미설정으로 미발송`;
+  return `알림 조건 충족(${title}) — 발송 실패`;
+}
+
 // ── ② 변경분 → places ────────────────────────────────────────────────────────
 
 interface PlaceUpsertRow {
@@ -429,7 +507,7 @@ function daysAgoIso(days: number): string {
 }
 
 async function cleanup(db: SupabaseClient): Promise<CleanupCounts> {
-  const counts: CleanupCounts = { throws: 0, enrichment: 0, syncRuns: 0 };
+  const counts: CleanupCounts = { throws: 0, enrichment: 0, syncRuns: 0, rateLimits: 0 };
 
   // 다트 결과 스냅샷 — 30일 (`throws.expires_at` 이 기본값으로 들고 있습니다)
   const expiredThrows = await db
@@ -454,6 +532,15 @@ async function cleanup(db: SupabaseClient): Promise<CleanupCounts> {
     .lt("started_at", daysAgoIso(SYNC_RUN_RETENTION_DAYS))
     .select("id");
   counts.syncRuns = (oldRuns.data ?? []).length;
+
+  // 상한 카운터 — 2일 (DF-4). 마이그레이션 전이면 표가 없어 오류가 오는데, 위 정리들과 같은
+  // 방식으로 결과만 받고 넘어갑니다 — 청소가 안 됐다고 동기화를 세울 이유가 없습니다.
+  const oldLimits = await db
+    .from("rate_limits")
+    .delete()
+    .lt("window_start", daysAgoIso(RATE_LIMIT_RETENTION_DAYS))
+    .select("bucket");
+  counts.rateLimits = (oldLimits.data ?? []).length;
 
   return counts;
 }
@@ -577,7 +664,7 @@ export async function runIncrementalSync(options: SyncOptions = {}): Promise<Syn
     skipped: 0,
     calls: 0,
   };
-  let cleanupCounts: CleanupCounts = { throws: 0, enrichment: 0, syncRuns: 0 };
+  let cleanupCounts: CleanupCounts = { throws: 0, enrichment: 0, syncRuns: 0, rateLimits: 0 };
   let audit: AuditResult | null = null;
   const done: string[] = [];
   let pending = false;
@@ -720,6 +807,15 @@ export async function runIncrementalSync(options: SyncOptions = {}): Promise<Syn
     };
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
+
+    // ①-b DF-2 — 이번 실패를 이전 이력에 얹어 §6.5 의 알림 조건을 봅니다. `finishRun` 앞이라
+    // 진행 중인 이 실행의 행은 아직 `running` 이고, 판정에서 건너뛰어집니다.
+    let alerted: string | null = null;
+    if (!options.dryRun) {
+      alerted = await notifyOnFailure(db, message.slice(0, 300));
+    }
+    const errorNote = alerted ? `${message.slice(0, 300)} / ${alerted}` : message.slice(0, 500);
+
     // 실패해도 ① 단계의 INSERT 는 이미 일어났습니다 — DF-1 은 지켜집니다.
     await finishRun(db, runId, {
       status: "error",
@@ -727,7 +823,7 @@ export async function runIncrementalSync(options: SyncOptions = {}): Promise<Syn
       upserted: counts.upserted + counts.hidden,
       skipped: counts.skipped,
       cursor: null,
-      note: message.slice(0, 500),
+      note: errorNote,
     });
 
     const finishedAt = new Date();
@@ -743,7 +839,7 @@ export async function runIncrementalSync(options: SyncOptions = {}): Promise<Syn
       counts,
       cleanup: cleanupCounts,
       audit,
-      note: message.slice(0, 500),
+      note: errorNote,
     };
   }
 }
