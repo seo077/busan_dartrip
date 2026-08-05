@@ -40,6 +40,7 @@ import {
   type TourPlaceImage,
 } from "@/lib/tourapi.core";
 import { fetchRelatedPlaces, RELATED_SERVICE, type RelatedPlace } from "@/lib/related";
+import { lawSignguCd } from "@/lib/lawdong";
 import {
   DURUNUBI_SERVICE,
   fetchBusanCourses,
@@ -54,6 +55,17 @@ const OK_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 /** 실패를 기억해 두는 기간. 짧게 둬야 복구가 화면에 빨리 반영됩니다 */
 const FAIL_TTL_MS = 60 * 60 * 1000;
+
+/**
+ * 캐시에 담긴 값의 세대.
+ *
+ * 호출 규격이나 담는 모양을 바꾸면 **이 숫자를 올립니다.** 그러면 예전 세대로 담긴 행은
+ * 아직 7일이 안 지났어도 낡은 것으로 보고 다시 받아 옵니다. 올리지 않으면 규격을 고쳐도
+ * 최대 일주일 동안 옛 결과가 화면에 그대로 남습니다.
+ *
+ *   1 → 2  연관관광지 호출에 지역 코드(`areaCd`·`signguCd`)를 넣도록 고침 (2026-08-05)
+ */
+const PAYLOAD_VERSION = 2;
 
 type Kind = "photo" | "related" | "course";
 
@@ -196,7 +208,12 @@ async function writeCache(
     await db
       .from("place_enrichment")
       .upsert(
-        { place_id: placeId, kind, payload, fetched_at: new Date().toISOString() },
+        {
+          place_id: placeId,
+          kind,
+          payload: { ...payload, v: PAYLOAD_VERSION },
+          fetched_at: new Date().toISOString(),
+        },
         { onConflict: "place_id,kind" },
       );
   } catch {
@@ -204,8 +221,9 @@ async function writeCache(
   }
 }
 
-/** 성공한 값은 7일, 실패한 값은 1시간 씁니다. */
+/** 성공한 값은 7일, 실패한 값은 1시간 씁니다. 세대가 다르면 나이와 무관하게 다시 받습니다. */
 function isFresh(row: CacheRow): boolean {
+  if (row.payload.v !== PAYLOAD_VERSION) return false;
   const ok = row.payload.ok === true;
   const age = Date.now() - new Date(row.fetchedAt).getTime();
   return age < (ok ? OK_TTL_MS : FAIL_TTL_MS);
@@ -338,7 +356,10 @@ interface RelatedPayload extends Record<string, unknown> {
 }
 
 async function buildRelated(place: PlaceDetail): Promise<RelatedPayload> {
-  const result = await fetchRelatedPlaces(place.name, { limit: 12 });
+  // 이 서비스는 **법정동 코드**를 씁니다 — 국문 관광정보의 지역코드와 다른 체계입니다
+  // (`lib/lawdong.ts`). 넣지 않으면 오류 없이 0건이 돌아옵니다.
+  const signguCd = lawSignguCd(place.sigunguCode, place.sigunguName);
+  const result = await fetchRelatedPlaces(place.name, { signguCd, limit: 12 });
   return {
     ok: true,
     items: result.items,
