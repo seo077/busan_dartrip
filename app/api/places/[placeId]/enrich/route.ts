@@ -1,5 +1,5 @@
 /**
- * GET /api/places/:id/enrich — 연관·코스·사진 (S4).
+ * GET /api/places/:id/enrich — 사진·소개·연관·코스 (S4).
  *
  * 설계 정본: `API데이터설계.md` §8(Route 목록 — 외부 호출 있음 / 캐시 7일)
  *            §3.2~§3.4(외부 3종) · §5.3(`place_enrichment`)
@@ -65,12 +65,18 @@ export async function GET(
       photo: {
         count: enrichment.photo.photos.length,
         photos: enrichment.photo.photos,
-        detail: enrichment.photo.detail,
       },
+      // 소개·전화·홈페이지. `places.overview` 가 이미 있으면 외부를 부르지 않아 null 입니다.
+      detail: enrichment.detail.detail,
       related: { count: enrichment.related.items.length, items: enrichment.related.items },
       course: { count: enrichment.course.courses.length, courses: enrichment.course.courses },
       // 규격 확인용 — 어떤 서비스에 무엇으로 물었고 무엇이 왔는지
-      specs: [...enrichment.photo.specs, enrichment.related.spec, enrichment.course.spec],
+      specs: [
+        ...enrichment.photo.specs,
+        ...enrichment.detail.specs,
+        enrichment.related.spec,
+        enrichment.course.spec,
+      ],
     },
     {
       headers: {

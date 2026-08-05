@@ -139,7 +139,7 @@ async function CarouselSection({ place }: { place: PlaceDetail }) {
 /** 소개 + 정보 — DB 값이 먼저, 빈 칸만 외부 응답으로 채웁니다 (§6.3-4·5). */
 async function DetailSection({ place }: { place: PlaceDetail }) {
   const enrichment = await readEnrichment(place.id);
-  const detail = enrichment?.photo.detail ?? null;
+  const detail = enrichment?.detail.detail ?? null;
 
   // 사용자 등록 장소는 소개가 없고 등록자의 한 줄만 있습니다 (§6.4 "최소 정보")
   const overview = place.overview ?? detail?.overview ?? place.submittedNote ?? null;

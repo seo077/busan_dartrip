@@ -17,10 +17,17 @@
  *
  * 캐시 `kind` 에 대하여
  * ---------------------
- * `place_enrichment.kind` 는 `('related','course','photo')` 세 값만 허용합니다(§5.3 DDL).
- * 그래서 **국문 관광정보 서비스에서 받은 이 장소의 사진과 소개를 `photo` 한 행에 함께**
- * 담습니다. 소개 전용 `kind` 를 두려면 check 제약을 바꿔야 하고, 스키마 변경은 이번 작업의
- * 범위 밖입니다. 이 자리는 마이그레이션이 열리는 시점에 `detail` 로 나누는 것이 맞습니다.
+ * `place_enrichment.kind` 는 `('related','course','photo','detail')` 네 값을 허용합니다
+ * (마이그레이션 `20260805150000_place_enrichment_detail_kind.sql`). 사진(`detailImage2` +
+ * 관광사진)과 소개(`detailCommon2`)는 **서로 다른 행**입니다. 앞 회차에는 담을 자리가
+ * 셋뿐이라 소개를 사진 행에 얹어 두었는데, 그러면 한쪽만 실패해도 둘 다 다시 받아야 하고
+ * 백필이 소개만 미리 채워 두는 것도 불가능했습니다.
+ *
+ * 소개는 DB 가 먼저입니다
+ * -----------------------
+ * `places.overview` 가 채워져 있으면 **`detailCommon2` 를 부르지 않습니다**
+ * (`scripts/backfill/05-detail.ts` 가 미리 채웁니다). 화면이 어차피 DB 값을 먼저 쓰므로,
+ * 부르면 쓰이지도 않을 응답으로 한도만 축나기 때문입니다.
  */
 
 import "server-only";
@@ -67,7 +74,7 @@ const FAIL_TTL_MS = 60 * 60 * 1000;
  */
 const PAYLOAD_VERSION = 2;
 
-type Kind = "photo" | "related" | "course";
+type Kind = "photo" | "detail" | "related" | "course";
 
 /**
  * 한 블록이 어디서 무엇을 받아 왔는지. 설계 §3.2~§3.4 가 `[미확정]` 으로 남긴 부분을
@@ -139,7 +146,11 @@ export interface CarouselPhoto {
 
 export interface PhotoBlock {
   photos: CarouselPhoto[];
-  /** `detailCommon2` 로 받아 온 소개·연락처. 화면의 소개/정보 블록이 씁니다 */
+  specs: EnrichSpec[];
+}
+
+/** `detailCommon2` 로 받아 온 소개·연락처. 화면의 소개/정보 블록이 씁니다 */
+export interface DetailBlock {
   detail: {
     overview: string | null;
     tel: string | null;
@@ -160,6 +171,7 @@ export interface CourseBlock {
 
 export interface Enrichment {
   photo: PhotoBlock;
+  detail: DetailBlock;
   related: RelatedBlock;
   course: CourseBlock;
 }
@@ -252,7 +264,7 @@ async function cached<T extends Record<string, unknown>>(
   return payload;
 }
 
-// ── 1. 사진 캐러셀 + 소개 (관광공사 국문 관광정보 + 관광사진) ────────────────
+// ── 1. 사진 캐러셀 (관광공사 국문 관광정보 + 관광사진) ───────────────────────
 
 const TOUR_SERVICE = "B551011/KorService2";
 
@@ -260,26 +272,19 @@ interface PhotoPayload extends Record<string, unknown> {
   ok: boolean;
   images: TourPlaceImage[];
   gallery: GalleryPhoto[];
-  detail: TourPlaceDetail | null;
   specs: EnrichSpec[];
 }
 
 async function buildPhoto(place: PlaceDetail): Promise<PhotoPayload> {
   const specs: EnrichSpec[] = [];
   let images: TourPlaceImage[] = [];
-  let detail: TourPlaceDetail | null = null;
   let gallery: GalleryPhoto[] = [];
 
-  // ① 국문 관광정보 — 이 장소의 사진과 소개. contentid 가 있는 관광공사 출처만 부릅니다.
+  // ① 국문 관광정보 — 이 장소의 사진. contentid 가 있는 관광공사 출처만 부릅니다.
   const contentId = place.source === "tourapi" ? place.sourceId : null;
   if (contentId) {
-    const [imgRes, detRes] = await Promise.allSettled([
-      fetchPlaceImages(contentId),
-      fetchPlaceDetail(contentId),
-    ]);
-
-    if (imgRes.status === "fulfilled") {
-      images = imgRes.value;
+    try {
+      images = await fetchPlaceImages(contentId);
       specs.push(okSpec(TOUR_SERVICE, "detailImage2", "response.body.items.item", [
         "contentid",
         "originimgurl",
@@ -287,21 +292,8 @@ async function buildPhoto(place: PlaceDetail): Promise<PhotoPayload> {
         "imgname",
         "cpyrhtDivCd",
       ]));
-    } else {
-      specs.push(failSpec(TOUR_SERVICE, imgRes.reason));
-    }
-
-    if (detRes.status === "fulfilled") {
-      detail = detRes.value;
-      specs.push(okSpec(TOUR_SERVICE, "detailCommon2", "response.body.items.item", [
-        "contentid",
-        "overview",
-        "tel",
-        "homepage",
-        "cpyrhtDivCd",
-      ]));
-    } else {
-      specs.push(failSpec(TOUR_SERVICE, detRes.reason));
+    } catch (e) {
+      specs.push(failSpec(TOUR_SERVICE, e));
     }
   }
 
@@ -316,7 +308,48 @@ async function buildPhoto(place: PlaceDetail): Promise<PhotoPayload> {
     specs.push(failSpec(PHOTO_SERVICE, e));
   }
 
-  return { ok: specs.some((s) => s.ok), images, gallery, detail, specs };
+  return { ok: specs.some((s) => s.ok), images, gallery, specs };
+}
+
+// ── 2. 소개 · 전화 · 홈페이지 (`detailCommon2`) ──────────────────────────────
+
+interface DetailPayload extends Record<string, unknown> {
+  ok: boolean;
+  detail: TourPlaceDetail | null;
+  specs: EnrichSpec[];
+}
+
+async function buildDetail(place: PlaceDetail): Promise<DetailPayload> {
+  const contentId = place.source === "tourapi" ? place.sourceId : null;
+  if (!contentId) return { ok: true, detail: null, specs: [] };
+
+  const detail = await fetchPlaceDetail(contentId);
+  return {
+    ok: true,
+    detail,
+    specs: [
+      okSpec(TOUR_SERVICE, "detailCommon2", "response.body.items.item", [
+        "contentid",
+        "overview",
+        "tel",
+        "homepage",
+        "cpyrhtDivCd",
+      ]),
+    ],
+  };
+}
+
+function toDetailBlock(payload: DetailPayload): DetailBlock {
+  return {
+    detail: payload.detail
+      ? {
+          overview: payload.detail.overview,
+          tel: payload.detail.tel,
+          homepage: payload.detail.homepage,
+        }
+      : null,
+    specs: payload.specs ?? [],
+  };
 }
 
 function toPhotoBlock(payload: PhotoPayload, place: PlaceDetail): PhotoBlock {
@@ -334,20 +367,10 @@ function toPhotoBlock(payload: PhotoPayload, place: PlaceDetail): PhotoBlock {
   for (const img of payload.images ?? []) push(img.url, img.name ?? place.name, null);
   for (const g of payload.gallery ?? []) push(g.url, g.title ?? place.name, g.photographer);
 
-  return {
-    photos,
-    detail: payload.detail
-      ? {
-          overview: payload.detail.overview,
-          tel: payload.detail.tel,
-          homepage: payload.detail.homepage,
-        }
-      : null,
-    specs: payload.specs ?? [],
-  };
+  return { photos, specs: payload.specs ?? [] };
 }
 
-// ── 2. 함께 가볼 만한 곳 (연관관광지) ────────────────────────────────────────
+// ── 3. 함께 가볼 만한 곳 (연관관광지) ────────────────────────────────────────
 
 interface RelatedPayload extends Record<string, unknown> {
   ok: boolean;
@@ -367,7 +390,7 @@ async function buildRelated(place: PlaceDetail): Promise<RelatedPayload> {
   };
 }
 
-// ── 3. 주변 도보 코스 (두루누비) ─────────────────────────────────────────────
+// ── 4. 주변 도보 코스 (두루누비) ─────────────────────────────────────────────
 
 interface CoursePayload extends Record<string, unknown> {
   ok: boolean;
@@ -393,19 +416,31 @@ async function buildCourse(place: PlaceDetail): Promise<CoursePayload> {
 // ── 진입점 ───────────────────────────────────────────────────────────────────
 
 /**
- * 세 블록을 한꺼번에 준비합니다. **어떤 경우에도 예외를 던지지 않습니다** —
+ * 네 블록을 한꺼번에 준비합니다. **어떤 경우에도 예외를 던지지 않습니다** —
  * 화면이 이 함수 때문에 멈추면 §6.4 "부분 결손" 이 성립하지 않습니다.
  */
 export async function loadEnrichment(place: PlaceDetail): Promise<Enrichment> {
   const keyMissing = !hasPortalKey();
 
-  const [photo, related, course] = await Promise.all([
+  // 소개가 DB 에 이미 있으면 `detailCommon2` 를 부르지 않습니다. 화면이 DB 값을 먼저
+  // 쓰므로 불러 봐야 쓰이지 않고, 백필(`05-detail.ts`)이 채워 둔 값이 곧 이 값입니다.
+  const detailInDb = place.overview !== null && place.overview.trim() !== "";
+
+  const [photo, detail, related, course] = await Promise.all([
     cached<PhotoPayload>(
       place.id,
       "photo",
       () => buildPhoto(place),
-      (e) => ({ ok: false, images: [], gallery: [], detail: null, specs: [failSpec(TOUR_SERVICE, e)] }),
+      (e) => ({ ok: false, images: [], gallery: [], specs: [failSpec(TOUR_SERVICE, e)] }),
     ),
+    keyMissing || detailInDb
+      ? Promise.resolve<DetailPayload>({ ok: true, detail: null, specs: [] })
+      : cached<DetailPayload>(
+          place.id,
+          "detail",
+          () => buildDetail(place),
+          (e) => ({ ok: false, detail: null, specs: [failSpec(TOUR_SERVICE, e)] }),
+        ),
     keyMissing
       ? Promise.resolve<RelatedPayload>({
           ok: false,
@@ -434,6 +469,7 @@ export async function loadEnrichment(place: PlaceDetail): Promise<Enrichment> {
 
   return {
     photo: toPhotoBlock(photo, place),
+    detail: toDetailBlock(detail),
     related: { items: related.items ?? [], spec: related.spec },
     course: { courses: course.courses ?? [], spec: course.spec },
   };
