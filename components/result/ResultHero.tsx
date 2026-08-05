@@ -10,7 +10,12 @@
  * 얹는 것으로 둡니다(§5.4 "사진 없음" · "사진 로드 실패"가 같은 자리로 수렴합니다).
  * 사진 유무는 노출 순서에 영향을 주지 않습니다(§5.3-1).
  *
- * 장소명 탭 → S4 전이(§5.5)는 S4 화면이 생긴 뒤에 잇습니다. 지금 링크를 걸면 404 로 갑니다.
+ * 장소명·히어로 탭 → S4 (§5.5)
+ * ----------------------------
+ * 전이표가 두 자리를 다 적어 두었으므로 둘 다 잇습니다.
+ *   · 사진 영역 — 글씨·버튼 뒤에 깔린 링크 층이 받습니다.
+ *   · 장소명    — 그 위에 얹힌 글자 자체가 링크입니다.
+ * 링크 층을 글씨 블록보다 **아래**(`z-0`)에 두어 길찾기·다시 던지기가 가려지지 않게 했습니다.
  */
 
 import Link from "next/link";
@@ -62,6 +67,13 @@ export function ResultHero({
         className="absolute inset-0 bg-gradient-to-b from-black/55 via-black/10 to-[#0E1116]"
       />
 
+      {/* 히어로 탭 → S4 (§5.5). 글씨·버튼 블록보다 아래에 깔립니다 */}
+      <Link
+        href={`/place/${place.id}`}
+        aria-label={`${place.name} 자세히 보기`}
+        className="absolute inset-0 z-0"
+      />
+
       {/* 상단 바 (§5.1) — 좌: 뒤로 / 우: 공유 */}
       <header className="absolute inset-x-0 top-0 z-10 flex h-14 items-center justify-between px-2">
         <Link
@@ -93,7 +105,12 @@ export function ResultHero({
             place.image ? "text-3xl leading-tight" : "text-4xl leading-snug"
           }`}
         >
-          {place.name}
+          <Link href={`/place/${place.id}`} className="underline-offset-8 hover:underline">
+            {place.name}
+            <span aria-hidden className="ml-1 align-middle text-[0.7em] opacity-70">
+              ›
+            </span>
+          </Link>
         </h1>
         <p className="mt-2 text-base text-[#F2F4F7]/85">{sigunguName}</p>
         {place.address ? (

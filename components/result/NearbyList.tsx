@@ -16,6 +16,9 @@
  *
  * 브라우저에서 도는 이유는 [더 보기] 하나뿐입니다. 목록 값 자체는 서버에서 통째로 받으므로
  * 여기서 따로 불러오는 것이 없고, 자바스크립트가 늦어도 첫 10곳은 이미 화면에 있습니다.
+ *
+ * 한 줄 전체가 S4 로 가는 링크입니다(§5.5 "근처 항목 탭 → S4"). 이름만 링크로 두면 손가락으로
+ * 정확히 짚어야 해서, 목록에서는 줄 전체를 누를 수 있게 했습니다.
  */
 
 import { useState } from "react";
@@ -102,30 +105,33 @@ export function NearbyList({
 
       <ul className="mt-4 space-y-2">
         {shown.map((item) => (
-          <li
-            key={item.id}
-            className="flex items-center gap-3 rounded-2xl border border-white/10 bg-[#171B22] p-3"
-          >
-            <Thumb item={item} />
-            <div className="min-w-0 flex-1">
-              <div className="flex items-start justify-between gap-2">
-                <p className="truncate font-medium text-[#F2F4F7]">{item.name}</p>
-                <span className="shrink-0 text-sm" aria-hidden>
-                  {item.isGoodRestaurant ? "🏅" : ""}
-                  {item.isHiddenGem ? "✨" : ""}
-                </span>
+          <li key={item.id}>
+            {/* 근처 항목 탭 → S4 (§5.5) */}
+            <Link
+              href={`/place/${item.id}`}
+              className="flex items-center gap-3 rounded-2xl border border-white/10 bg-[#171B22] p-3"
+            >
+              <Thumb item={item} />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="truncate font-medium text-[#F2F4F7]">{item.name}</p>
+                  <span className="shrink-0 text-sm" aria-hidden>
+                    {item.isGoodRestaurant ? "🏅" : ""}
+                    {item.isHiddenGem ? "✨" : ""}
+                  </span>
+                </div>
+                {item.isGoodRestaurant || item.isHiddenGem ? (
+                  <span className="sr-only">
+                    {item.isGoodRestaurant ? "모범음식점 " : ""}
+                    {item.isHiddenGem ? "숨은 곳" : ""}
+                  </span>
+                ) : null}
+                <p className="mt-1 text-sm text-[#98A2B3]">
+                  <span aria-hidden>{themeIcon(item.theme)}</span> {themeLabel(item.theme)} ·{" "}
+                  {formatDistance(item.distanceM)}
+                </p>
               </div>
-              {item.isGoodRestaurant || item.isHiddenGem ? (
-                <span className="sr-only">
-                  {item.isGoodRestaurant ? "모범음식점 " : ""}
-                  {item.isHiddenGem ? "숨은 곳" : ""}
-                </span>
-              ) : null}
-              <p className="mt-1 text-sm text-[#98A2B3]">
-                <span aria-hidden>{themeIcon(item.theme)}</span> {themeLabel(item.theme)} ·{" "}
-                {formatDistance(item.distanceM)}
-              </p>
-            </div>
+            </Link>
           </li>
         ))}
       </ul>
