@@ -107,9 +107,9 @@ export function DartThrowZone({
     if (stage === "blocked") return "다른 구·군을 겨누거나 테마를 바꿔 보세요";
     if (stage === "idle") {
       if (hint) return hint;
-      // 조준의 규칙을 한 줄로 — 세게 당기면 멀리(북쪽), 옆으로 눕히면 반대쪽으로.
+      // 조준의 규칙을 한 줄로 — 세게 당기면 멀리(북쪽), 옆으로 눕히면 당긴 쪽으로.
       return aimActive
-        ? "세게 당길수록 멀리, 옆으로 눕히면 반대쪽으로"
+        ? "세게 당길수록 멀리, 옆으로 눕히면 당긴 쪽으로"
         : `어디로 당겨도 ${principle}이에요`;
     }
     if (stage === "pulling") {
@@ -228,7 +228,7 @@ export function DartThrowZone({
         aria-disabled={!enabled}
         aria-label={
           aimActive
-            ? "다트. 잡아서 당기면 위 지도를 겨눌 수 있습니다. 세게 당길수록 지도 위쪽, 옆으로 눕히면 당긴 반대쪽을 겨눕니다. 놓으면 겨눈 구·군으로 날아갑니다. 키보드에서는 Enter 또는 Space 로 조준 없이 던지며 16개 구·군 중 균등 추첨이 됩니다."
+            ? "다트. 잡아서 당기면 위 지도를 겨눌 수 있습니다. 세게 당길수록 지도 위쪽, 옆으로 눕히면 당긴 쪽을 겨눕니다. 놓으면 겨눈 구·군으로 날아갑니다. 키보드에서는 Enter 또는 Space 로 조준 없이 던지며 16개 구·군 중 균등 추첨이 됩니다."
             : "다트. 잡아서 아래로 당겼다 놓으면 날아갑니다. 키보드에서는 Enter 또는 Space 로 던집니다."
         }
         onPointerDown={sequence.onPointerDown}
