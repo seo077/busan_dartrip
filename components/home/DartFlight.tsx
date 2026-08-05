@@ -5,9 +5,10 @@
  *
  * 설계 정본: `화면구성도.md` §4.1(1단계 "던짐") · §4.2-1(CSS transform 기반, 저사양 대응)
  *
- * 손을 놓는 순간 다트가 있던 자리(`fromX`·`fromY`)에서 시작해 **지도 상자 한가운데**로 갑니다.
- * 도착 지점은 `FlightSpec` 이 이미 정해서 넘겨 준 값 하나뿐이라, 이 부품에는 방향을 고르는
- * 코드가 없습니다. 세기는 `durationMs`(빠르기)와 잔상 개수로만 나타납니다.
+ * 손을 놓는 순간 다트가 있던 자리(`fromX`·`fromY`)에서 시작해 **겨눈 자리**로 갑니다
+ * (조준을 쓰지 않으면 지도 상자 한가운데입니다). 도착 지점은 `FlightSpec` 이 이미 정해서
+ * 넘겨 준 값 하나뿐이라, 이 부품에는 궤적을 손보는 코드가 없습니다 — 겨눈 대로 갑니다(D-36).
+ * 세기는 `durationMs`(빠르기)와 잔상 개수로만 나타납니다.
  *
  * 움직이는 속성은 `transform`·`opacity` 둘뿐이라 배치 계산이 다시 일어나지 않습니다.
  * 잔상은 같은 도형을 늦게 출발시켜(`transition-delay`) 흐리게 지우는 방식이라 비용이 거의 없습니다.
@@ -48,7 +49,7 @@ export function DartFlight({ flight }: { flight: FlightSpec | null }) {
 
   const trails = trailCount(flight.power);
 
-  /** 단계별 변형 — 도착 지점은 `flight.dx`·`flight.dy` 하나로 고정입니다. */
+  /** 단계별 변형 — 도착 지점은 `flight.dx`·`flight.dy` 하나뿐입니다(겨눈 자리). */
   const transformFor = (p: Phase): string => {
     if (p === "start") {
       return `translate3d(0px, 0px, 0) rotate(${flight.tiltDeg}deg) scale(1)`;

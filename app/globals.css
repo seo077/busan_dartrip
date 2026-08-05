@@ -38,8 +38,53 @@
   animation: dart-bob 2.6s ease-in-out infinite;
 }
 
+/*
+ * 꽂히는 순간의 타격감 (D-36 후속).
+ *   · dart-impact      — 다트가 박히며 한 번 떨고 멎습니다. 반복하지 않습니다.
+ *   · dart-impact-ring — 꽂힌 자리에서 퍼지는 파문. 두 겹을 시차를 두고 겹칩니다.
+ * 둘 다 `transform`·`opacity` 만 움직여 배치 계산이 다시 일어나지 않습니다.
+ */
+@keyframes dart-impact {
+  0% {
+    transform: translateY(-9px) scale(1.18);
+  }
+  38% {
+    transform: translateY(0) scale(1) rotate(6deg);
+  }
+  58% {
+    transform: translateY(0) scale(1) rotate(-4deg);
+  }
+  76% {
+    transform: translateY(0) scale(1) rotate(2deg);
+  }
+  100% {
+    transform: translateY(0) scale(1) rotate(0deg);
+  }
+}
+
+.dart-impact {
+  animation: dart-impact 520ms cubic-bezier(0.2, 0.9, 0.3, 1) 1;
+}
+
+@keyframes dart-impact-ring {
+  0% {
+    transform: translate(-50%, -50%) scale(0.35);
+    opacity: 0.9;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(2.6);
+    opacity: 0;
+  }
+}
+
+.dart-impact-ring {
+  animation: dart-impact-ring 900ms cubic-bezier(0.15, 0.6, 0.3, 1) infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .dart-bob {
+  .dart-bob,
+  .dart-impact,
+  .dart-impact-ring {
     animation: none;
   }
 }

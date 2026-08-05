@@ -47,12 +47,18 @@ export function ResultHero({
   sigunguName,
   nearbyCount,
   rethrowHref,
+  aimed = false,
 }: {
   place: PlaceView;
   sigunguName: string;
   nearbyCount: number;
   /** [다시 던지기] — 던졌을 때의 범위·테마를 그대로 달고 S1 로 (§5.3-6) */
   rethrowHref: string;
+  /**
+   * 겨눠서 얻은 결과인지 (D-36). 맞으면 구·군 줄이 "겨냥한 영도구에 꽂혔어요" 가 되어
+   * **손으로 한 일과 나온 결과가 이어져 보입니다.** 결과 자체는 달라지지 않습니다.
+   */
+  aimed?: boolean;
 }) {
   return (
     <section
@@ -112,7 +118,18 @@ export function ResultHero({
             </span>
           </Link>
         </h1>
-        <p className="mt-2 text-base text-[#F2F4F7]/85">{sigunguName}</p>
+        <p className="mt-2 text-base break-keep text-[#F2F4F7]/85">
+          {aimed ? (
+            <>
+              <span aria-hidden className="mr-1">
+                🎯
+              </span>
+              겨냥한 {sigunguName}에 꽂혔어요
+            </>
+          ) : (
+            sigunguName
+          )}
+        </p>
         {place.address ? (
           <p className="mt-1 text-sm break-keep text-[#98A2B3]">{place.address}</p>
         ) : null}

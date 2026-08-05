@@ -4,29 +4,34 @@
  * 다트를 잡아 당겼다 놓는 자리 + 단계 캡션.
  *
  * 설계 정본: `화면구성도.md` §4.1(캡션·원칙 문구) · §4.2(구성 요소 2·3, 모션 최소화) · §4.3(상태)
+ *            `AI 논의사항.md` Round 1 §D-36(다트 조준)
  *
  * 화면에 놓인 다트는 **집을 수 있다는 것이 먼저 보여야** 합니다. 그래서 가만히 있을 때
  * 살짝 흔들리고(`.dart-bob`), 바로 위에 "당겼다 놓으세요" 한 줄을 둡니다.
- * 당기는 동안에는 세 가지가 함께 움직입니다 — 다트가 손을 따라오고, 힘 게이지가 차고,
- * 위쪽 궤적 표시가 밝아집니다.
+ * 당기는 동안에는 셋이 함께 움직입니다 — 다트가 손을 따라오고, 힘 게이지가 차고,
+ * **위쪽 지도에 조준점이 따라다닙니다**(`AimReticle`).
  *
- * **궤적 표시는 늘 위(지도 쪽)만 가리킵니다.** 좌우로 당겨도 방향이 바뀌지 않습니다.
- * 당긴 방향이 결과를 바꾸지 않는다는 것을 화면이 먼저 말하게 하려는 것입니다(D-3 균등 추첨).
- * 같은 이유로 쉬는 동안에도 "어디로 당겨도 16개 구·군 중 균등 추첨" 을 한 줄 띄웁니다.
+ * ── 캡션이 하는 일 (D-36) ───────────────────────────────────────────────────
+ * 조준 중에는 **놓기 전에** 겨눈 구·군 이름이 여기 큰 글자로 나옵니다. 던진 뒤에는
+ * "겨냥한 영도구!" 로 이어 붙여, 손으로 한 일과 나온 결과가 같다는 것을 글자가 확인해 줍니다.
+ * 조준을 끈 상태에서는 종전대로 "16개 구·군 중 균등 추첨" 이 원칙 문구입니다(D-3 1단계).
+ * 두 모드가 서로 다른 말을 하고, 어느 쪽도 상대의 문구를 빌려 쓰지 않습니다.
  *
- * 대체 경로 두 가지:
+ * 대체 경로 두 가지 — 조준이 어려운 환경에서도 던질 수 있어야 합니다:
  *   - 모션 최소화(`prefers-reduced-motion`) 설정이면 제스처 없이 **버튼 하나**로 던집니다(§4.2).
  *   - 드래그를 못 하는 경우를 위해 다트 자체가 초점을 받고 **Enter·Space** 로 던져집니다.
- *     이 경로는 늘 같은 기본 세기를 씁니다.
+ *     이 두 길은 조준을 쓰지 않으므로 **균등 추첨**이고, 그 사실을 화면이 그대로 적습니다.
  */
 
 import type { RefObject } from "react";
 
 import { DartGlyph } from "@/components/home/DartGlyph";
 import type { DartSequence } from "@/components/home/useDartSequence";
+import type { AimState } from "@/lib/aim";
 import { DEFAULT_POWER, MIN_THROW_POWER, dartScale } from "@/lib/gesture";
 
-const PRINCIPLE = "16개 구·군 중 균등 추첨";
+const PRINCIPLE_UNIFORM = "16개 구·군 중 균등 추첨";
+const PRINCIPLE_AIMED = "겨눈 구·군 안에서 균등 추첨";
 
 interface Props {
   sequence: DartSequence;
@@ -38,6 +43,12 @@ interface Props {
   reducedMotion: boolean;
   /** 구·군 확정 단계에서 보여 줄 이름 */
   districtName: string | null;
+  /** 조준을 쓸 수 있는 상태인지 */
+  aimActive: boolean;
+  /** 지금 겨누고 있는 곳 (당기는 중에만) */
+  aimPreview: AimState | null;
+  /** 테마 이름 — 0곳 안내 문구에 씁니다 */
+  themeName: string;
 }
 
 export function DartThrowZone({
@@ -47,38 +58,65 @@ export function DartThrowZone({
   notReadyReason,
   reducedMotion,
   districtName,
+  aimActive,
+  aimPreview,
+  themeName,
 }: Props) {
-  const { stage, pull, power, tiltDeg, hint, busy } = sequence;
+  const { stage, pull, power, tiltDeg, hint, busy, aim } = sequence;
   const strongEnough = power >= MIN_THROW_POWER;
+
+  /** 이번 던지기가 조준으로 이뤄졌는지 — 캡션이 "겨냥한" 을 붙일 근거 */
+  const aimedThrow = aim !== null;
+  const principle = aimActive ? PRINCIPLE_AIMED : PRINCIPLE_UNIFORM;
 
   // 단계별 큰 글자 (§4.1 캡션)
   const caption = (() => {
     switch (stage) {
       case "pulling":
+        if (aimPreview) {
+          if (aimPreview.target.count === 0) return `${aimPreview.target.name} — 여긴 없어요`;
+          return strongEnough ? `${aimPreview.target.name}` : `${aimPreview.target.name} · 더 당겨요`;
+        }
         return strongEnough ? "놓으면 날아갑니다" : "조금 더 당겨 보세요";
       case "flying":
       case "waiting":
-        return "던지는 중…";
+        return aim ? `${aim.target.name}으로!` : "던지는 중…";
       case "district":
-        return districtName ? `${districtName}!` : "던지는 중…";
+        if (!districtName) return "던지는 중…";
+        return aimedThrow ? `겨냥한 ${districtName}!` : `${districtName}!`;
       case "pinned":
-        return "꽂혔습니다";
+        return aimedThrow ? "겨냥한 곳에 꽂혔습니다" : "꽂혔습니다";
       case "short":
         return "다트가 못 미쳤어요";
+      case "blocked":
+        return aim ? `${aim.target.name}에는 ${themeName} 장소가 없어요` : "여기엔 없어요";
       case "missed":
         return "다트를 놓쳤어요";
       default:
         return enabled
-          ? "다트를 잡아 아래로 당겼다 놓으세요"
+          ? aimActive
+            ? "다트를 잡아 당겨 지도를 겨누세요"
+            : "다트를 잡아 아래로 당겼다 놓으세요"
           : (notReadyReason ?? "지금은 던질 수 없어요");
     }
   })();
 
   // 작은 글자 — 쉬는 동안에는 원칙, 연출 중에는 §4.1 의 원칙 문구가 같은 자리에 옵니다.
   const subCaption = (() => {
-    if (stage === "district") return PRINCIPLE;
-    if (stage === "idle") return hint ?? `어디로 당겨도 ${PRINCIPLE}이에요`;
-    if (stage === "pulling") return `당긴 세기는 날아가는 속도만 바꿔요`;
+    if (stage === "district" || stage === "pinned") return principle;
+    if (stage === "blocked") return "다른 구·군을 겨누거나 테마를 바꿔 보세요";
+    if (stage === "idle") {
+      if (hint) return hint;
+      // 조준의 규칙을 한 줄로 — 세게 당기면 멀리(북쪽), 옆으로 눕히면 반대쪽으로.
+      return aimActive
+        ? "세게 당길수록 멀리, 옆으로 눕히면 반대쪽으로"
+        : `어디로 당겨도 ${principle}이에요`;
+    }
+    if (stage === "pulling") {
+      if (aimPreview?.borderline && aimPreview.target.count > 0) return "구·군 경계 근처예요";
+      if (aimPreview) return `${principle} · 놓으면 확정`;
+      return "당긴 세기는 날아가는 속도만 바꿔요";
+    }
     return "";
   })();
 
@@ -105,7 +143,9 @@ export function DartThrowZone({
           {stage === "idle" ? "" : caption}
         </p>
         <p className="min-h-5 text-center text-xs text-[#98A2B3]">
-          {stage === "district" ? PRINCIPLE : `${PRINCIPLE}으로 한 곳을 뽑아요`}
+          {stage === "district"
+            ? PRINCIPLE_UNIFORM
+            : `${PRINCIPLE_UNIFORM}으로 한 곳을 뽑아요`}
         </p>
       </div>
     );
@@ -116,14 +156,18 @@ export function DartThrowZone({
     <div className="relative mt-6 flex min-h-60 flex-col items-center">
       <p
         aria-live="polite"
-        className={`min-h-7 text-center text-base font-semibold ${
-          stage === "district" || stage === "pinned" ? "text-[#FF9B9B]" : "text-[#F2F4F7]"
+        className={`min-h-7 text-center text-base font-semibold break-keep ${
+          stage === "blocked"
+            ? "text-[#FFC9C9]"
+            : stage === "district" || stage === "pinned"
+              ? "text-[#FF9B9B]"
+              : "text-[#F2F4F7]"
         }`}
       >
         {caption}
       </p>
 
-      <p className="min-h-5 text-center text-xs text-[#98A2B3]">{subCaption}</p>
+      <p className="min-h-5 text-center text-xs break-keep text-[#98A2B3]">{subCaption}</p>
 
       {/* 드래그가 어려운 경우를 위한 빠져나갈 길 — 헛던졌을 때만 조용히 나옵니다. */}
       {stage === "idle" && hint ? (
@@ -133,7 +177,7 @@ export function DartThrowZone({
           disabled={!enabled || busy}
           className="mt-1 text-xs text-[#98A2B3] underline underline-offset-2 disabled:opacity-40"
         >
-          버튼으로 던지기
+          조준 없이 버튼으로 던지기
         </button>
       ) : null}
 
@@ -159,7 +203,10 @@ export function DartThrowZone({
         </div>
       </div>
 
-      {/* 궤적 표시 — 방향은 늘 위(지도) 하나입니다. */}
+      {/*
+        세기 표시 — 화살표 세 개가 차오릅니다.
+        겨눈 방향은 위 지도의 조준점이 답하므로, 여기서는 방향을 말하지 않습니다.
+      */}
       <div className="mt-3 flex h-9 flex-col items-center justify-end gap-1.5" aria-hidden>
         {[2, 1, 0].map((i) => {
           const lit = power > (i + 1) / 4;
@@ -179,7 +226,11 @@ export function DartThrowZone({
         role="button"
         tabIndex={enabled && !busy ? 0 : -1}
         aria-disabled={!enabled}
-        aria-label="다트. 잡아서 아래로 당겼다 놓으면 날아갑니다. 키보드에서는 Enter 또는 Space 로 던집니다."
+        aria-label={
+          aimActive
+            ? "다트. 잡아서 당기면 위 지도를 겨눌 수 있습니다. 세게 당길수록 지도 위쪽, 옆으로 눕히면 당긴 반대쪽을 겨눕니다. 놓으면 겨눈 구·군으로 날아갑니다. 키보드에서는 Enter 또는 Space 로 조준 없이 던지며 16개 구·군 중 균등 추첨이 됩니다."
+            : "다트. 잡아서 아래로 당겼다 놓으면 날아갑니다. 키보드에서는 Enter 또는 Space 로 던집니다."
+        }
         onPointerDown={sequence.onPointerDown}
         onPointerMove={sequence.onPointerMove}
         onPointerUp={sequence.onPointerUp}

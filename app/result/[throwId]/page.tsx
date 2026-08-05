@@ -94,10 +94,18 @@ export async function generateMetadata({
 
 export default async function ResultPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ throwId: string }>;
+  /**
+   * `?aimed=1` — 방금 **겨눠서** 던진 사람이 넘어올 때만 붙습니다(D-36).
+   * 공유 링크에는 붙지 않습니다. 링크를 받은 사람은 겨눈 적이 없으니 그 사람 화면에서는
+   * 평소대로 구·군 이름만 나옵니다. 결과 자체는 이 값과 무관합니다 — 문장 하나가 달라질 뿐입니다.
+   */
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { throwId } = await params;
+  const query = await searchParams;
 
   let lookup: Awaited<ReturnType<typeof loadThrowResult>>;
   try {
@@ -127,6 +135,9 @@ export default async function ResultPage({
   const { place, sigungu, nearby, scope, theme } = lookup.result;
   const backToSetup = rethrowHref(scope, theme);
 
+  // 겨눠서 던졌다고 적으려면 실제로 그 구·군을 지정해 던진 결과여야 합니다.
+  const aimed = query.aimed === "1" && scope !== null && scope === sigungu.code;
+
   return (
     <main className="mx-auto min-h-screen w-full max-w-lg bg-[#0E1116] text-[#F2F4F7]">
       <ResultHero
@@ -134,6 +145,7 @@ export default async function ResultPage({
         sigunguName={sigungu.name}
         nearbyCount={nearby.length}
         rethrowHref={backToSetup}
+        aimed={aimed}
       />
 
       <NearbyList originName={place.name} items={nearby} rethrowHref={backToSetup} />

@@ -15,13 +15,16 @@
  *                                                                    └─(오류)───▶ missed ─▶ idle
  *
  * 세기가 모자란 던지기는 **서버를 부르지 않습니다**(`short`). 헛던진 것을 결과로 세지 않기 위해서입니다.
+ * 겨눈 구·군에 그 테마 장소가 하나도 없을 때도 서버를 부르지 않습니다(`blocked`).
  *
- * **조준이 성립하지 않게 두는 지점 — 이 파일에서 지켜야 하는 성질입니다.**
- *   1. `requestThrow` 는 **인자가 없습니다.** 세기·방향을 서버로 보낼 통로 자체가 없습니다.
- *   2. 다트가 도착하는 화면 좌표는 `targetRef`(지도 상자)의 **한가운데로 고정**입니다.
- *      당긴 방향이 도착 지점을 1px 도 바꾸지 않습니다.
- *   3. 구·군은 서버 응답이 온 뒤에야 지도가 그쪽으로 움직여 밝아집니다(2단계). 던지기 전에는
- *      화면 어디에도 "여기를 겨누면 여기" 라는 대응이 없습니다.
+ * **조준이 성립하는 방식 — 이 파일에서 지켜야 하는 성질입니다(D-36).**
+ *   1. 놓는 순간의 당김 벡터를 `resolveAim` 에 그대로 넘겨 구·군을 정하고, **그 값이 그대로**
+ *      `requestThrow` 로 갑니다. 중간에서 손보지 않습니다.
+ *   2. 다트가 도착하는 화면 좌표는 조준점입니다. 조준을 쓰지 않을 때만 지도 상자 한가운데입니다.
+ *   3. 화면이 당기는 내내 보여 준 이름과 서버로 보낸 값이 같습니다. 궤적을 몰래 휘게 하거나
+ *      결과를 다시 뽑는 자리가 없습니다.
+ *   4. 조준이 없는 경로(키보드·모션 최소화·조준 끔)는 `resolveAim` 이 null 을 돌려주고
+ *      서버가 종전대로 16개 구·군 균등 추첨을 합니다(D-3 1단계).
  */
 
 import {
@@ -34,6 +37,7 @@ import {
   type RefObject,
 } from "react";
 
+import type { AimState, AimTarget } from "@/lib/aim";
 import {
   DART_SIZE,
   DEFAULT_POWER,
@@ -47,6 +51,7 @@ import {
   shortFlightReach,
   type Point,
 } from "@/lib/gesture";
+import { tapFeedback } from "@/lib/motion";
 
 // ── 시간표 (§4.1) ────────────────────────────────────────────────────────────
 /** 던짐(0.0s) → 구·군 확정(1.0s) */
@@ -63,15 +68,18 @@ const MISS_MS = 900;
 const FLIGHT_FALLBACK_MS = 420;
 /** 못 미친 다트가 바닥으로 떨어지는 시간 */
 const SHORT_FALL_MS = 420;
+/** 겨눈 구·군에 그 테마 장소가 없어 되돌아오기까지의 시간 */
+const BLOCKED_MS = 1100;
 
 export type DartStage =
   | "idle" // 다트가 놓여 있음
-  | "pulling" // 잡아 당기는 중
+  | "pulling" // 잡아 당기는 중 (= 겨누는 중)
   | "flying" // 날아가는 중
   | "waiting" // 꽂혔고 서버 응답을 기다리는 중 (§4.3 응답 지연 = 1단계 캡션 유지)
   | "district" // 구·군 확정 (§4.1 2단계)
   | "pinned" // 좌표 확정 (§4.1 3단계)
   | "short" // 못 미쳐 떨어짐 (서버 미호출)
+  | "blocked" // 겨눈 구·군에 그 테마 장소가 없음 (서버 미호출, §7.2)
   | "missed"; // 서버 오류로 빗나감 (§4.3 실패)
 
 export interface DartHit {
@@ -104,23 +112,32 @@ interface Options {
   enabled: boolean;
   reducedMotion: boolean;
   dartRef: RefObject<HTMLElement | null>;
-  /** 다트가 꽂힐 곳 — 지도 상자. 여기 한가운데가 유일한 도착 지점입니다. */
+  /** 다트가 꽂힐 판 — 지도 상자. 조준점은 이 상자 안의 좌표입니다. */
   targetRef: RefObject<HTMLElement | null>;
-  /** 서버 던지기. 인자가 없습니다 — 제스처 값이 결과로 새어 나갈 통로를 두지 않습니다. */
-  requestThrow: () => Promise<DartOutcome>;
+  /**
+   * 조준 판정 (D-36). 놓는 순간의 당김 벡터를 받아 겨눈 구·군을 돌려줍니다.
+   * 조준을 쓰지 않는 경로면 없거나 null 을 돌려주고, 그때는 서버가 균등 추첨을 합니다.
+   */
+  resolveAim?: (pull: Point) => AimState | null;
+  /** 서버 던지기. 조준 결과를 **그대로** 넘깁니다(중간에서 손보지 않습니다). */
+  requestThrow: (aimed: AimTarget | null) => Promise<DartOutcome>;
   onHit: (hit: DartHit) => void;
   onEmpty: () => void;
   onError: () => void;
+  /** 겨눈 구·군에 그 테마 장소가 없을 때 — 서버를 부르지 않고 이유만 알립니다. */
+  onBlocked?: (target: AimTarget) => void;
 }
 
 export interface DartSequence {
   stage: DartStage;
-  /** 지금 당긴 벡터(px) — 화면에 다트를 옮겨 그리는 데만 씁니다. */
+  /** 지금 당긴 벡터(px) — 다트를 옮겨 그리는 데와 조준점을 잡는 데 씁니다. */
   pull: Point;
   power: number;
   tiltDeg: number;
   flight: FlightSpec | null;
   hit: DartHit | null;
+  /** 이번 던지기에 확정된 조준(놓는 순간 잠깁니다). 조준을 안 썼으면 null */
+  aim: AimState | null;
   /** 톡 건드리거나 약하게 놓았을 때의 한 줄 안내 */
   hint: string | null;
   /** 던지는 중(중복 입력 차단 구간) */
@@ -139,13 +156,24 @@ export interface DartSequence {
 const ZERO: Point = { x: 0, y: 0 };
 
 export function useDartSequence(options: Options): DartSequence {
-  const { enabled, reducedMotion, dartRef, targetRef, requestThrow, onHit, onEmpty, onError } =
-    options;
+  const {
+    enabled,
+    reducedMotion,
+    dartRef,
+    targetRef,
+    resolveAim,
+    requestThrow,
+    onHit,
+    onEmpty,
+    onError,
+    onBlocked,
+  } = options;
 
   const [stage, setStage] = useState<DartStage>("idle");
   const [pull, setPull] = useState<Point>(ZERO);
   const [flight, setFlight] = useState<FlightSpec | null>(null);
   const [hit, setHit] = useState<DartHit | null>(null);
+  const [aim, setAim] = useState<AimState | null>(null);
   const [hint, setHint] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -196,10 +224,11 @@ export function useDartSequence(options: Options): DartSequence {
 
   /**
    * 비행 궤적을 만듭니다.
-   * 도착 지점은 **지도 상자 한가운데 하나뿐**이며, 세기는 걸리는 시간에만 들어갑니다.
+   * 도착 지점은 **겨눈 자리**입니다. 조준을 쓰지 않으면 지도 상자 한가운데로 갑니다.
+   * 세기는 걸리는 시간과 잔상에만 들어갑니다.
    */
   const buildFlight = useCallback(
-    (power: number, kind: "throw" | "short"): FlightSpec | null => {
+    (power: number, kind: "throw" | "short", aimPoint: Point | null): FlightSpec | null => {
       const dart = dartRef.current;
       const target = targetRef.current;
       if (!dart || !target) return null;
@@ -212,8 +241,11 @@ export function useDartSequence(options: Options): DartSequence {
       const fromX = d.left + d.width / 2 - size / 2;
       const fromY = d.top + (d.height - size) / 2;
 
-      const fullDx = t.left + t.width / 2 - (fromX + size / 2);
-      const fullDy = t.top + t.height / 2 - fromY;
+      const toX = t.left + (aimPoint ? aimPoint.x : t.width / 2);
+      const toY = t.top + (aimPoint ? aimPoint.y : t.height / 2);
+
+      const fullDx = toX - (fromX + size / 2);
+      const fullDy = toY - fromY;
       const reach = kind === "throw" ? 1 : shortFlightReach(power);
 
       return {
@@ -234,9 +266,9 @@ export function useDartSequence(options: Options): DartSequence {
 
   /** 세기가 모자란 던지기 — 서버를 부르지 않고 되돌립니다. */
   const playShort = useCallback(
-    async (power: number) => {
+    async (power: number, aimPoint: Point | null) => {
       setBusyBoth(true);
-      const spec = buildFlight(power, "short");
+      const spec = buildFlight(power, "short", aimPoint);
       setFlight(spec);
       setStage("short");
 
@@ -251,9 +283,40 @@ export function useDartSequence(options: Options): DartSequence {
     [buildFlight, setBusyBoth, wait],
   );
 
+  /**
+   * 겨눈 구·군에 그 테마 장소가 없는 경우 (§7.2).
+   * 다트는 겨눈 자리까지 그대로 날아가고(눈속임 없이 겨눈 대로 갑니다), 거기서 이유를 답합니다.
+   * **서버를 부르지 않고 결과로도 세지 않습니다.**
+   */
+  const playBlocked = useCallback(
+    async (power: number, state: AimState) => {
+      setBusyBoth(true);
+      setAim(state);
+      setHint(null);
+
+      const spec = buildFlight(power, "throw", state.point);
+      setFlight(spec);
+      setStage("flying");
+      await wait(spec?.durationMs ?? FLIGHT_FALLBACK_MS);
+      if (!aliveRef.current) return;
+
+      setFlight(null);
+      setStage("blocked");
+      onBlocked?.(state.target);
+
+      await wait(BLOCKED_MS);
+      if (!aliveRef.current) return;
+
+      setStage("idle");
+      setAim(null);
+      setBusyBoth(false);
+    },
+    [buildFlight, onBlocked, setBusyBoth, wait],
+  );
+
   /** 정상 던지기 — 연출과 서버 호출이 함께 시작되고, 늦는 쪽을 기다립니다(§4.3). */
   const runThrow = useCallback(
-    async (power: number) => {
+    async (power: number, state: AimState | null) => {
       if (busyRef.current || !enabled) return;
 
       setBusyBoth(true);
@@ -261,21 +324,25 @@ export function useDartSequence(options: Options): DartSequence {
       doneRef.current = false;
       hitRef.current = null;
       setHit(null);
+      setAim(state);
       setHint(null);
 
       const startedAt = Date.now();
-      const pending = requestThrow();
+      // 겨눈 구·군이 그대로 서버로 갑니다. 여기서 바꾸지 않습니다(D-36).
+      const pending = requestThrow(state?.target ?? null);
 
       if (reducedMotion) {
         setStage("waiting");
       } else {
-        const spec = buildFlight(power, "throw");
+        const spec = buildFlight(power, "throw", state?.point ?? null);
         setFlight(spec);
         setStage("flying");
         await wait(spec?.durationMs ?? FLIGHT_FALLBACK_MS);
         if (!aliveRef.current) return;
         setFlight(null);
         setStage("waiting");
+        // 꽂히는 순간의 짧은 진동 — 기기가 지원할 때만, 모션 최소화면 하지 않습니다.
+        tapFeedback(14);
       }
 
       let outcome: DartOutcome;
@@ -289,6 +356,7 @@ export function useDartSequence(options: Options): DartSequence {
       // 빈 조합은 오류가 아니라 안내입니다 (AD-10 · §4.3). 연출을 멈추고 화면에 맡깁니다.
       if (outcome.kind === "empty") {
         setStage("idle");
+        setAim(null);
         setBusyBoth(false);
         onEmpty();
         return;
@@ -300,6 +368,7 @@ export function useDartSequence(options: Options): DartSequence {
         await wait(MISS_MS);
         if (!aliveRef.current) return;
         setStage("idle");
+        setAim(null);
         setBusyBoth(false);
         return;
       }
@@ -389,24 +458,33 @@ export function useDartSequence(options: Options): DartSequence {
       const distance = Math.hypot(released.x, released.y);
       const power = pullPower(released);
 
+      // 놓는 순간의 당김으로 겨눈 곳을 확정합니다. 이 값이 그대로 서버로 갑니다(D-36).
+      const aimed = resolveAim?.(released) ?? null;
+
       // 다트는 손에서 놓는 순간 제자리로 돌아오고, 날아가는 것은 비행 레이어가 맡습니다.
       pullRef.current = ZERO;
       setPull(ZERO);
 
       if (cancelled || distance < TAP_SLOP_PX) {
         setStage("idle");
-        setHint("다트를 잡아 아래로 당겼다 놓으세요");
+        setHint("다트를 잡아 당겼다 놓으세요");
         return;
       }
 
       if (power < MIN_THROW_POWER) {
-        void playShort(power);
+        void playShort(power, aimed?.point ?? null);
         return;
       }
 
-      void runThrow(power);
+      // 겨눈 구·군에 그 테마 장소가 없으면 던지되 서버는 부르지 않습니다 (§7.2).
+      if (aimed && aimed.target.count === 0) {
+        void playBlocked(power, aimed);
+        return;
+      }
+
+      void runThrow(power, aimed);
     },
-    [playShort, runThrow],
+    [playBlocked, playShort, resolveAim, runThrow],
   );
 
   const onPointerUp = useCallback(
@@ -418,11 +496,16 @@ export function useDartSequence(options: Options): DartSequence {
     [endPull],
   );
 
-  // ── 키보드 (드래그를 못 하는 경로) ────────────────────────────────────────
+  // ── 키보드·버튼 (드래그를 못 하는 경로) ───────────────────────────────────
+  /**
+   * 조준 없이 던집니다 — 서버가 16개 구·군 균등 추첨을 합니다(D-3 1단계).
+   * 겨누기 어려운 환경에서도 서비스가 그대로 성립해야 하므로 이 길은 항상 열려 있습니다.
+   * 특정 구·군을 원하면 §3.2-3 의 범위 선택이 같은 일을 합니다(D-4).
+   */
   const throwWithDefaultPower = useCallback(
     (power: number) => {
       if (!enabled || busyRef.current) return;
-      void runThrow(power);
+      void runThrow(power, null);
     },
     [enabled, runThrow],
   );
@@ -451,6 +534,7 @@ export function useDartSequence(options: Options): DartSequence {
     tiltDeg: dartTiltDeg(pull),
     flight,
     hit,
+    aim,
     hint,
     busy,
     onPointerDown,
