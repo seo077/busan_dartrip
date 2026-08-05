@@ -27,17 +27,15 @@ import { NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 
 import { getServiceClient, supabaseStatus } from "@/lib/supabase";
+import { PHOTO_BUCKET, UPLOAD_MAX_BYTES } from "@/lib/upload";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+// 이 파일이 내보내는 것은 위의 세그먼트 설정과 아래 `POST` 뿐입니다 — Route Handler 규격.
+// 상한 용량·버킷 이름은 규격 밖 export 라 `lib/upload.ts` 로 옮겼습니다(그 파일 머리말 참조).
+
 const NO_STORE = { "Cache-Control": "no-store" };
-
-/** §5.6 "서버 검증 — 최대 1MB" */
-export const MAX_BYTES = 1024 * 1024;
-
-/** §5.6 버킷 이름 */
-export const BUCKET = "place-photos";
 
 type ImageKind = { mime: string; ext: string };
 
@@ -101,7 +99,7 @@ export async function POST(request: Request) {
 
   if (!file) return fail("bad_request", "사진이 없습니다.");
   if (file.size === 0) return fail("bad_request", "사진이 비어 있습니다.");
-  if (file.size > MAX_BYTES) {
+  if (file.size > UPLOAD_MAX_BYTES) {
     return fail("too_large", "사진이 너무 큽니다. 1MB 이하로 올려 주세요.", 413);
   }
 
@@ -115,7 +113,7 @@ export async function POST(request: Request) {
   const path = `submissions/${yyyymm}/${randomUUID()}.${kind.ext}`;
 
   const db = getServiceClient();
-  const { error } = await db.storage.from(BUCKET).upload(path, bytes, {
+  const { error } = await db.storage.from(PHOTO_BUCKET).upload(path, bytes, {
     contentType: kind.mime,
     upsert: false,
     cacheControl: "31536000",
@@ -125,7 +123,7 @@ export async function POST(request: Request) {
     return fail("storage", "사진을 올리지 못했어요.", 502, error.message);
   }
 
-  const { data } = db.storage.from(BUCKET).getPublicUrl(path);
+  const { data } = db.storage.from(PHOTO_BUCKET).getPublicUrl(path);
 
   return NextResponse.json(
     { ok: true, url: data.publicUrl, path, bytes: file.size },
