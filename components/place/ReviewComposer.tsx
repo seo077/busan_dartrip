@@ -17,6 +17,13 @@
  * 한 줄과 사진은 둘 다 선택입니다. [남기기] 는 아무것도 입력하지 않아도 눌립니다 — 표본이
  * 적은 장소일수록 기록의 문턱이 결과를 좌우하기 때문입니다(§6.2).
  *
+ * 한 장소에 한 번
+ * --------------
+ * 이 기기가 이미 이 장소에 남겼으면 [다녀왔어요] 자리에 안내를 대신 둡니다. 판단은 화면이
+ * 아니라 서버가 합니다 — 화면은 열릴 때 `GET …/reviews?author=` 로 **물어보고**, 그 답에
+ * 따라 버튼을 감출 뿐입니다. 그래서 이 파일을 고쳐 버튼을 되살려도 적재는 되지 않습니다
+ * (`lib/review.ts` §"한 기기는 한 장소에 한 번").
+ *
  * 실패해도 쓴 것을 잃지 않습니다
  * -----------------------------
  * §6.4 의 "후기 등록 실패 — 시트 유지 + 다시 시도(입력 내용 보존)" 그대로입니다. 실패 시
@@ -53,8 +60,34 @@ export function ReviewComposer({ placeId }: { placeId: string }) {
   const [uploadedUrl, setUploadedUrl] = useState<string | null>(null);
   const [phase, setPhase] = useState<Phase>({ kind: "editing" });
   const [done, setDone] = useState(false);
+  /** 이 기기가 이미 남겼는지. `unknown` = 아직 서버에 물어보는 중 */
+  const [mine, setMine] = useState<"unknown" | "yes" | "no">("unknown");
 
   const fileRef = useRef<HTMLInputElement | null>(null);
+
+  // ── 이미 남겼는지 서버에 물어보기 ────────────────────────────────────────────
+  // 기기 식별값은 브라우저에만 있으므로(D-9) 서버가 그린 화면은 이것을 알 수 없습니다.
+  // 그래서 열린 뒤에 한 번 묻습니다. 못 물어봤으면 버튼을 그대로 두고, 실제 차단은
+  // 남기기 시점에 서버가 409 로 합니다 — 화면이 조용히 막아 버리는 편보다 낫습니다.
+  useEffect(() => {
+    let alive = true;
+    const url = `/api/places/${encodeURIComponent(placeId)}/reviews?author=${encodeURIComponent(deviceRef())}`;
+
+    void (async () => {
+      try {
+        const res = await fetch(url, { cache: "no-store" });
+        const result = await res.json();
+        if (!alive) return;
+        setMine(result?.ok && result.mine === true ? "yes" : "no");
+      } catch {
+        if (alive) setMine("no");
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [placeId]);
 
   // ── 시트 열림 동안 뒤 화면이 따라 스크롤되지 않게 ────────────────────────────
   useEffect(() => {
@@ -159,6 +192,15 @@ export function ReviewComposer({ placeId }: { placeId: string }) {
       });
       const result = await res.json();
 
+      // 이미 남긴 경우만 "다시 시도" 가 뜻이 없습니다. 시트를 닫고 안내로 바꿉니다.
+      if (result?.reason === "duplicate") {
+        setOpen(false);
+        setPhase({ kind: "editing" });
+        setMine("yes");
+        router.refresh();
+        return;
+      }
+
       if (!result?.ok) {
         setPhase({
           kind: "failed",
@@ -176,6 +218,7 @@ export function ReviewComposer({ placeId }: { placeId: string }) {
       setPhotoError(null);
       setPhase({ kind: "editing" });
       setDone(true);
+      setMine("yes");
       router.refresh();
     } catch {
       setPhase({ kind: "failed", message: "저장하지 못했어요. 연결을 확인해 주세요." });
@@ -186,18 +229,26 @@ export function ReviewComposer({ placeId }: { placeId: string }) {
 
   return (
     <>
-      {/* ── 여는 버튼 (§6.1 맨 아래 칸 · §6.3-10 "항상 표시") ─────────────── */}
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="mt-4 flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border border-white/15 bg-[#171B22] text-base font-semibold text-[#F2F4F7]"
-      >
-        <span aria-hidden>✓</span> 다녀왔어요
-      </button>
-
-      {done && !open ? (
-        <p className="mt-2 text-center text-xs text-[#98A2B3]">기록을 남겼어요. 고맙습니다.</p>
-      ) : null}
+      {/* ── 여는 버튼 (§6.1 맨 아래 칸 · §6.3-10 "항상 표시") ───────────────
+          이미 남긴 기기에는 버튼 대신 안내가 그 자리에 들어갑니다. */}
+      {mine === "yes" ? (
+        <div className="mt-4 rounded-2xl border border-white/10 bg-[#171B22] p-4 text-center">
+          <p className="text-sm break-keep text-[#F2F4F7]">
+            {done ? "기록을 남겼어요. 고맙습니다." : "이미 다녀오셨다고 남기셨어요."}
+          </p>
+          <p className="mt-1 text-xs break-keep text-[#98A2B3]">
+            한 장소에는 한 번만 남길 수 있어요.
+          </p>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="mt-4 flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border border-white/15 bg-[#171B22] text-base font-semibold text-[#F2F4F7]"
+        >
+          <span aria-hidden>✓</span> 다녀왔어요
+        </button>
+      )}
 
       {!open ? null : (
         <div className="fixed inset-0 z-50 flex items-end justify-center">

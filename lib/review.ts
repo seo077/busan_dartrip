@@ -21,6 +21,16 @@
  * 가 들어오고, 카카오 로그인이 붙으면 `kakao:<id>` 로 **값만** 바뀝니다. 스키마도 이 파일도
  * 그때 고칠 것이 없습니다.
  *
+ * 한 기기는 한 장소에 한 번
+ * -------------------------
+ * 같은 `author_ref` 가 같은 장소에 이미 후기를 남겼으면 새로 쓰지 못합니다. "다녀왔어요" 는
+ * 한 장소에 여러 번 쌓을 성격이 아니고, 로그인이 없는 v1(`D-9`)에서 도배를 막을 손잡이가
+ * 기기 식별값뿐이기 때문입니다. 지우면 초기화되는 값이라 **완전한 차단이 아니라 문턱**이며,
+ * 그 이상은 v1 범위 밖입니다(`D-8` 과 같은 간이판 철학 — 지우기는 콘솔 수동).
+ *
+ * 화면도 같은 규칙으로 작성 버튼을 감추지만, 판정은 여기서 한 번 더 합니다 — 브라우저를
+ * 거치지 않고 이 경로로 바로 들어오는 요청이 있기 때문입니다.
+ *
  * 서버 전용입니다. `server-only` 가 붙어 있어 클라이언트 컴포넌트가 import 하면 빌드가
  * 그 자리에서 멈춥니다(service_role 키 유출 차단).
  */
@@ -43,6 +53,43 @@ const AUTHOR_PATTERN = /^[a-z]{1,16}:[A-Za-z0-9._:-]{1,128}$/;
  * `author_ref` 는 not null 이므로 빈 값 대신 이 값을 넣습니다 — 기록을 막지 않기 위해서입니다.
  */
 const ANONYMOUS_REF = "anon:unknown";
+
+/**
+ * 작성자 식별값이 **한 사람을 가리키는지** 봅니다.
+ *
+ * `anon:unknown` 은 저장소를 못 쓰는 브라우저가 모두 같이 쓰는 값이라 기기 하나가 아닙니다.
+ * 이 값에까지 1회 제한을 걸면 서로 남남인 사용자들이 서로의 기록을 막게 되므로 제외합니다
+ * (기록의 문턱을 낮춘다는 §6.2 의 결정과 같은 쪽입니다). 이 값을 흉내 내면 제한을 피할 수
+ * 있지만, 기기 식별값 자체가 지우면 초기화되는 값이라 어차피 완전한 차단은 아닙니다.
+ */
+function isIdentifiable(authorRef: string): boolean {
+  return authorRef !== ANONYMOUS_REF && AUTHOR_PATTERN.test(authorRef);
+}
+
+/**
+ * 이 작성자가 이 장소에 이미 후기를 남겼는지.
+ *
+ * 화면(작성 버튼 자리)과 적재(POST)가 같은 판단을 쓰도록 한 곳에 둡니다.
+ */
+export async function hasDeviceReview(placeId: string, authorRef: string): Promise<boolean> {
+  if (!isIdentifiable(authorRef)) return false;
+
+  requireConfig();
+
+  const { data, error } = await getServiceClient()
+    .from("reviews")
+    .select("id")
+    .eq("place_id", placeId)
+    .eq("author_ref", authorRef)
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw new ReviewError("db_error", "이전 기록을 확인하지 못했습니다.", error.message);
+  }
+
+  return data !== null;
+}
 
 export class ReviewError extends Error {
   readonly reason: "missing_config" | "db_error";
@@ -125,7 +172,8 @@ export interface CreatedReview {
 
 export type CreateReviewOutcome =
   | { kind: "created"; review: CreatedReview }
-  | { kind: "not_found" };
+  | { kind: "not_found" }
+  | { kind: "duplicate" };
 
 /**
  * 후기 1건.
@@ -137,6 +185,9 @@ export type CreateReviewOutcome =
  * `photo_path` 에는 우리 Storage 의 공개 URL 이 그대로 들어갑니다. `places.first_image` 가
  * 같은 형태로 URL 을 들고 있고(S5), 화면은 그 값을 이미지 주소로 바로 씁니다 — 받아들이는
  * 자리를 우리 버킷 하나로 좁히는 검사(`isOwnPhotoUrl`)도 등록과 같은 것을 씁니다.
+ *
+ * 장소를 확인한 다음 **이미 남긴 기록이 있는지**를 봅니다(`duplicate`). 없는 장소를 두고
+ * "이미 남기셨다" 고 답하지 않으려고 순서를 이렇게 둡니다.
  */
 export async function createReview(
   placeId: string,
@@ -158,6 +209,8 @@ export async function createReview(
     throw new ReviewError("db_error", "장소를 확인하지 못했습니다.", placeError.message);
   }
   if (!place) return { kind: "not_found" };
+
+  if (await hasDeviceReview(placeId, input.authorRef)) return { kind: "duplicate" };
 
   const { data, error } = await db
     .from("reviews")

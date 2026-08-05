@@ -11,19 +11,24 @@
  *
  * 응답
  *   GET  200 { ok: true, reviews: [...] }
+ *        200 { ok: true, reviews: [...], mine: boolean }   ← `?author=` 를 준 경우
  *   POST 200 { ok: true, review: {...} }
  *        400 { ok: false, reason: "invalid" | "bad_request", field?, message }
  *        404 { ok: false, reason: "not_found", message }
+ *        409 { ok: false, reason: "duplicate", message }
  *        200 { ok: false, reason: "missing_config", ... } / 502 { ok: false, reason: "db_error", ... }
  *
  * 실패는 화면이 §6.4 의 "후기 등록 실패 — 시트 유지 + 다시 시도(입력 보존)" 로 받습니다.
  * 그래서 어떤 실패에서도 사용자가 쓴 내용은 서버가 아니라 화면이 들고 있습니다.
+ *
+ * `409 duplicate` 만 예외입니다 — 다시 시도해도 결과가 같은 유일한 실패라서, 화면은 시트를
+ * 닫고 "이미 남기셨다" 는 안내로 바꿉니다(`lib/review.ts` §"한 기기는 한 장소에 한 번").
  */
 
 import { NextResponse } from "next/server";
 
 import { PlaceError, isUuid, loadPlaceReviews } from "@/lib/place";
-import { ReviewError, createReview, parseReview } from "@/lib/review";
+import { ReviewError, createReview, hasDeviceReview, parseReview } from "@/lib/review";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -53,7 +58,7 @@ function failure(e: unknown) {
 }
 
 export async function GET(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ placeId: string }> },
 ) {
   const { placeId } = await context.params;
@@ -65,9 +70,19 @@ export async function GET(
     );
   }
 
+  // `?author=` 는 "이 기기가 이미 남겼는가" 를 묻는 자리입니다. 기기마다 답이 다르므로
+  // 이때만 캐시를 끕니다 — 목록만 달라고 한 요청은 지금까지처럼 1분 캐시를 씁니다.
+  const author = new URL(request.url).searchParams.get("author");
+
   try {
     const reviews = await loadPlaceReviews(placeId);
-    return NextResponse.json({ ok: true, reviews }, { status: 200, headers: LIST_CACHE });
+
+    if (author === null) {
+      return NextResponse.json({ ok: true, reviews }, { status: 200, headers: LIST_CACHE });
+    }
+
+    const mine = await hasDeviceReview(placeId, author);
+    return NextResponse.json({ ok: true, reviews, mine }, { status: 200, headers: NO_STORE });
   } catch (e) {
     return failure(e);
   }
@@ -112,6 +127,18 @@ export async function POST(
       return NextResponse.json(
         { ok: false, reason: "not_found", message: "찾을 수 없는 장소예요." },
         { status: 404, headers: NO_STORE },
+      );
+    }
+
+    if (outcome.kind === "duplicate") {
+      return NextResponse.json(
+        {
+          ok: false,
+          reason: "duplicate",
+          message: "이미 이 장소에 기록을 남기셨어요.",
+          detail: "한 장소에는 한 번만 남길 수 있어요.",
+        },
+        { status: 409, headers: NO_STORE },
       );
     }
 
