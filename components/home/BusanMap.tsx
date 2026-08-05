@@ -5,19 +5,26 @@
  *
  * 설계 정본: `화면구성도.md` §3.2-2 · §3.3("지도 로드 실패" 상태)
  *
- * 성격이 분명한 화면 요소입니다. **장식 겸 맥락 제공**이며 다트 결과에 관여하지 않습니다.
+ * 이 지도는 **과녁**입니다(D-36). 다트를 당기면 이 상자 위에 조준점이 따라다니고,
+ * 놓으면 겨눈 지점의 구·군이 정해집니다. 그래서 지금 지도가 어느 범위를 비추고 있는지를
+ * 바깥(`DartSetup`)에 알려 줘야 합니다 — `onViewport` 가 그 통로입니다.
+ * 조준점을 그리는 일과 구·군을 고르는 일은 이 파일이 하지 않습니다(`lib/aim.ts`).
+ *
  *   - 확대·이동 제스처 비활성 (`setDraggable(false)` · `setZoomable(false)`)
- *   - 마커 없음 (결과를 미리 노출하지 않습니다)
+ *   - 마커 없음 (결과를 미리 노출하지 않습니다 — 조준 표식은 이 위에 덧그리는 층입니다)
  *   - 범위가 특정 구·군이면 그 중심으로 카메라 이동
  *
  * **지도가 없어도 던지기는 그대로 됩니다.** 다트는 DB 집계표에서만 돌기 때문입니다(D-6).
- * 그래서 SDK 로드 실패·키 미설정은 오류 화면이 아니라 대체 패널로 처리합니다.
+ * 그래서 SDK 로드 실패·키 미설정은 오류 화면이 아니라 대체 패널로 처리하고,
+ * 그때는 `onViewport(null)` 로 **조준이 불가능함**을 알려 균등 추첨으로 되돌립니다.
  *
  * 앱키는 `NEXT_PUBLIC_KAKAO_JS_KEY` 입니다. 브라우저에 공개되는 값이며,
  * 서버 전용 키(REST 키·service_role)는 이 파일에 들어오지 않습니다.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+
+import type { MapViewport } from "@/lib/aim";
 
 /** 부산 시청 부근 — 부산 전체를 볼 때의 중심 */
 const BUSAN_CENTER = { lat: 35.1798, lng: 129.0750 };
@@ -28,7 +35,12 @@ const SCRIPT_ID = "kakao-maps-sdk";
 
 // SDK 가 실제로 쓰는 부분만 좁게 선언합니다. 전역 any 를 두지 않기 위해서입니다.
 interface KakaoLatLng {
-  readonly __brand?: "LatLng";
+  getLat(): number;
+  getLng(): number;
+}
+interface KakaoLatLngBounds {
+  getSouthWest(): KakaoLatLng;
+  getNorthEast(): KakaoLatLng;
 }
 interface KakaoMap {
   setCenter(latlng: KakaoLatLng): void;
@@ -37,6 +49,11 @@ interface KakaoMap {
   setDraggable(draggable: boolean): void;
   setZoomable(zoomable: boolean): void;
   relayout(): void;
+  getBounds(): KakaoLatLngBounds;
+}
+interface KakaoEventBus {
+  addListener(target: KakaoMap, type: string, handler: () => void): void;
+  removeListener(target: KakaoMap, type: string, handler: () => void): void;
 }
 interface KakaoMaps {
   load(callback: () => void): void;
@@ -45,6 +62,7 @@ interface KakaoMaps {
     container: HTMLElement,
     options: { center: KakaoLatLng; level: number },
   ) => KakaoMap;
+  event: KakaoEventBus;
 }
 declare global {
   interface Window {
@@ -119,7 +137,17 @@ export interface MapFocus {
   level?: number;
 }
 
-export function BusanMap({ focus }: { focus: MapFocus | null }) {
+export function BusanMap({
+  focus,
+  onViewport,
+}: {
+  focus: MapFocus | null;
+  /**
+   * 지금 비추는 범위를 알립니다(조준용). 지도를 못 쓰면 `null` 이 갑니다.
+   * 카메라가 멈출 때마다(`idle`) 다시 보냅니다.
+   */
+  onViewport?: (viewport: MapViewport | null) => void;
+}) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<KakaoMap | null>(null);
   const mapsRef = useRef<KakaoMaps | null>(null);
@@ -127,11 +155,44 @@ export function BusanMap({ focus }: { focus: MapFocus | null }) {
 
   const appKey = process.env.NEXT_PUBLIC_KAKAO_JS_KEY ?? "";
 
+  // 콜백이 매 렌더 새로 와도 지도를 다시 만들지 않도록 ref 로 받아 둡니다.
+  const onViewportRef = useRef(onViewport);
+  useEffect(() => {
+    onViewportRef.current = onViewport;
+  }, [onViewport]);
+
+  const report = useCallback(() => {
+    const map = mapRef.current;
+    const el = containerRef.current;
+    const notify = onViewportRef.current;
+    if (!notify) return;
+    if (!map || !el) {
+      notify(null);
+      return;
+    }
+    try {
+      const bounds = map.getBounds();
+      const sw = bounds.getSouthWest();
+      const ne = bounds.getNorthEast();
+      notify({
+        swLat: sw.getLat(),
+        swLng: sw.getLng(),
+        neLat: ne.getLat(),
+        neLng: ne.getLng(),
+        width: el.clientWidth,
+        height: el.clientHeight,
+      });
+    } catch {
+      notify(null);
+    }
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
 
     if (!appKey) {
       setState("unavailable");
+      onViewportRef.current?.(null);
       return;
     }
 
@@ -142,21 +203,34 @@ export function BusanMap({ focus }: { focus: MapFocus | null }) {
           center: new maps.LatLng(BUSAN_CENTER.lat, BUSAN_CENTER.lng),
           level: LEVEL_CITY,
         });
-        // 장식용이므로 제스처를 막습니다 (§3.2-2).
+        // 확대·이동 제스처는 막습니다 (§3.2-2). 이 상자 위에서 도는 손동작은 조준 하나뿐입니다.
         map.setDraggable(false);
         map.setZoomable(false);
         mapRef.current = map;
         mapsRef.current = maps;
+        maps.event.addListener(map, "idle", report);
         setState("ready");
+        report();
       })
       .catch(() => {
-        if (!cancelled) setState("unavailable");
+        if (cancelled) return;
+        setState("unavailable");
+        onViewportRef.current?.(null);
       });
 
     return () => {
       cancelled = true;
+      const map = mapRef.current;
+      const maps = mapsRef.current;
+      if (map && maps) {
+        try {
+          maps.event.removeListener(map, "idle", report);
+        } catch {
+          // 이미 정리됐으면 그만입니다.
+        }
+      }
     };
-  }, [appKey]);
+  }, [appKey, report]);
 
   // 범위가 바뀌면 카메라만 옮깁니다. 마커는 두지 않습니다.
   useEffect(() => {
@@ -171,7 +245,19 @@ export function BusanMap({ focus }: { focus: MapFocus | null }) {
       map.setLevel(LEVEL_CITY);
       map.panTo(new maps.LatLng(BUSAN_CENTER.lat, BUSAN_CENTER.lng));
     }
+    // 카메라가 멈추면 `idle` 이 다시 알려 줍니다.
   }, [focus, state]);
+
+  // 화면 크기가 바뀌면 상자도 비추는 범위도 달라집니다.
+  useEffect(() => {
+    if (state !== "ready") return;
+    const onResize = () => {
+      mapRef.current?.relayout();
+      report();
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [state, report]);
 
   return (
     <div className="relative h-56 w-full overflow-hidden rounded-2xl border border-white/10 bg-[#171B22] sm:h-72">

@@ -26,3 +26,24 @@ export function usePrefersReducedMotion(): boolean {
 
   return reduced;
 }
+
+/**
+ * 아주 짧은 진동 — 다트가 꽂히는 순간의 타격감입니다.
+ *
+ * 세 겹으로 막아 둡니다.
+ *   1. `navigator.vibrate` 가 없는 기기(대부분의 데스크톱·iOS)는 아무 일도 하지 않습니다.
+ *   2. 모션 최소화 설정이면 하지 않습니다 — 진동도 사용자가 줄이고 싶어 하는 자극입니다.
+ *   3. 길이를 20ms 안쪽으로 묶어 "울리는" 느낌이 되지 않게 합니다.
+ *
+ * 새 의존성 없이 브라우저 기본 기능만 씁니다.
+ */
+export function tapFeedback(ms = 12): void {
+  if (typeof window === "undefined" || typeof navigator === "undefined") return;
+  if (typeof navigator.vibrate !== "function") return;
+  if (window.matchMedia?.(QUERY).matches) return;
+  try {
+    navigator.vibrate(Math.max(1, Math.min(20, Math.round(ms))));
+  } catch {
+    // 사용자 제스처 없이 부르면 막는 브라우저가 있습니다. 타격감은 없어도 그만입니다.
+  }
+}
