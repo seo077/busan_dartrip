@@ -16,21 +16,41 @@
  *
  * 실패해도 500 이 아닙니다. 외부가 죽는 것은 이 서비스의 정상 상태 중 하나이고(SC-6),
  * 화면은 해당 블록만 감춰야 하므로 "무엇이 비었는지" 를 200 으로 알려 줍니다.
+ *
+ * 몇 곳까지 훑을 수 있는가 (DF-4)
+ * -------------------------------
+ * 캐시는 **장소별 7일**입니다. 뒤집으면 **장소를 바꿔 가며 부르면 매번 캐시 미적중**이라는
+ * 뜻이고, 다트 풀 788곳을 한 바퀴 훑으면 캐시가 하나도 막아 주지 못합니다. 그 한 바퀴가
+ * 관광공사 개발계정 일 한도(1,000회)를 넘깁니다.
+ *
+ * 이 경로가 죽어도 **다트는 멈추지 않습니다**(`SC-1` — 다트 경로에 외부 호출 없음). 무너지는
+ * 것은 S4 상세의 외부 블록이고 그쪽은 빈 블록을 감춥니다(`AD-8`). 그래도 심사 기간에 그
+ * 상태로 들어가지 않도록 주소 단위 상한을 겁니다(`lib/ratelimit.ts`).
  */
 
 import { NextResponse } from "next/server";
 
 import { loadEnrichment } from "@/lib/enrich";
 import { PlaceError, loadPlaceDetail } from "@/lib/place";
+import { consume, limitHeaders, limitResponseBody } from "@/lib/ratelimit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ placeId: string }> },
 ) {
   const { placeId } = await context.params;
+
+  // DF-4 — 장소를 찾기 전에 봅니다. 걸린 요청은 DB 조회도 하지 않습니다.
+  const limit = await consume("enrich", request);
+  if (!limit.allowed) {
+    return NextResponse.json(limitResponseBody(limit), {
+      status: 429,
+      headers: { "Cache-Control": "no-store", ...limitHeaders(limit) },
+    });
+  }
 
   let place;
   try {
@@ -82,6 +102,7 @@ export async function GET(
       headers: {
         // §8 — 7일. 실제 수명은 `place_enrichment` 가 들고 있고, 여기서는 CDN 쪽만 정합니다.
         "Cache-Control": "public, max-age=0, s-maxage=604800, stale-while-revalidate=86400",
+        ...limitHeaders(limit),
       },
     },
   );

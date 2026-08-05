@@ -11,6 +11,16 @@
  * 결과는 부산 상자 안으로만 좁혀 돌려줍니다. 지도 없이 목록에서 고르는 자리라, 서울 주소가
  * 섞여 있으면 사용자가 그것을 고른 뒤 마지막 단계에서 막히게 됩니다.
  *
+ * 같은 말로 물으면 같은 답이 옵니다 (DF-4)
+ * ----------------------------------------
+ * 이 경로는 인증이 없고 부를 때마다 카카오로 나가므로, 주소를 아는 사람이 한 줄짜리 반복
+ * 호출로 일 한도를 태울 수 있습니다. 다행히 **질의 문자열이 곧 캐시 열쇠**라서 CDN 이
+ * 그대로 걸러 냅니다 — 장소 이름·주소는 시시각각 바뀌는 값이 아니라 한 시간을 둡니다.
+ *
+ * 상한(카운터)이 아니라 캐시를 택한 이유는 `lib/ratelimit.ts` 머리말과 같습니다 —
+ * 이 경로는 DB 를 전혀 쓰지 않는데 카운터를 두면 DB 쓰기가 새로 생깁니다.
+ * 외부를 부르지 않고 끝난 응답(형식 오류 · 키 없음)은 캐시하지 않습니다.
+ *
  * 응답
  *   { ok: true, hits: [{ label, detail, lat, lng }] }
  *   { ok: false, reason: "bad_request" | "unavailable" }
@@ -25,6 +35,9 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const NO_STORE = { "Cache-Control": "no-store" };
+
+/** DF-4 — 같은 질의는 CDN 이 한 시간 들고 있습니다 */
+const CACHE = { "Cache-Control": "public, max-age=0, s-maxage=3600, stale-while-revalidate=3600" };
 
 export async function GET(request: Request) {
   const q = (new URL(request.url).searchParams.get("q") ?? "").trim();
@@ -45,5 +58,5 @@ export async function GET(request: Request) {
 
   const hits = (await searchPlaces(q, 8)).filter((hit) => isInBusanBox(hit.lat, hit.lng));
 
-  return NextResponse.json({ ok: true, hits: hits.slice(0, 5) }, { status: 200, headers: NO_STORE });
+  return NextResponse.json({ ok: true, hits: hits.slice(0, 5) }, { status: 200, headers: CACHE });
 }

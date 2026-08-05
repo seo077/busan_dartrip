@@ -18,15 +18,26 @@
  * 확장자·`Content-Type` 헤더는 보내는 쪽이 마음대로 적을 수 있으므로 **파일 앞머리 몇 바이트**로
  * 판정합니다.
  *
+ * 몇 장까지 받는가 (DF-4)
+ * -----------------------
+ * 크기를 재는 것만으로는 **1MB 짜리를 천 번 올리는 것**을 막지 못합니다. 보관함 1GB 는
+ * 하루가 지나도 돌아오지 않는 자원이고(`R-7`), 배포 주소는 심사 기간 내내 공개돼 있습니다.
+ * 그래서 주소 단위로 시간당·하루 상한을 함께 겁니다(`lib/ratelimit.ts`).
+ *
+ * 상한 검사를 **본문을 읽기 전에** 둡니다 — 걸릴 요청의 사진을 굳이 받아서 메모리에 올릴
+ * 이유가 없습니다.
+ *
  * 응답
  *   { ok: true, url, path }
  *   { ok: false, reason: "bad_request" | "too_large" | "not_image" | "missing_config" | "storage" }
+ *   { ok: false, reason: "rate_limited", retryAfter }   ← 429
  */
 
 import { NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 
 import { getServiceClient, supabaseStatus } from "@/lib/supabase";
+import { consume, limitHeaders, limitResponseBody } from "@/lib/ratelimit";
 import { PHOTO_BUCKET, UPLOAD_MAX_BYTES, isPhotoFolder } from "@/lib/upload";
 
 export const runtime = "nodejs";
@@ -88,6 +99,15 @@ export async function POST(request: Request) {
     );
   }
 
+  // DF-4 — 본문을 받기 전에 봅니다.
+  const limit = await consume("upload", request);
+  if (!limit.allowed) {
+    return NextResponse.json(limitResponseBody(limit), {
+      status: 429,
+      headers: { ...NO_STORE, ...limitHeaders(limit) },
+    });
+  }
+
   let file: File | null = null;
   // 어느 폴더에 둘지. 값이 없거나 모르는 값이면 등록 사진으로 봅니다 (`lib/upload.ts`).
   let folder = "submissions";
@@ -132,6 +152,6 @@ export async function POST(request: Request) {
 
   return NextResponse.json(
     { ok: true, url: data.publicUrl, path, bytes: file.size },
-    { status: 200, headers: NO_STORE },
+    { status: 200, headers: { ...NO_STORE, ...limitHeaders(limit) } },
   );
 }

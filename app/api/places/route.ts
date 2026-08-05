@@ -14,15 +14,23 @@
  *
  * 요청
  *   { name, theme, lat, lng, note?, photoUrl?, submittedBy?, allowDuplicate? }
+ * 몇 건까지 받는가 (DF-4)
+ * -----------------------
+ * 이 경로로 들어온 행은 사람이 콘솔에서 승인할 때까지 `pending` 으로 남습니다(`D-8`). 승인
+ * 전이라 다트에는 안 나오지만 **DB 행은 이미 만들어졌고 지우려면 사람이 지워야 합니다.**
+ * 되돌아오지 않는 자원이라 주소 단위 상한을 겁니다(`lib/ratelimit.ts`).
+ *
  * 응답
  *   200 { ok: true,  placeId, sigunguName }
  *   200 { ok: false, reason: "duplicate", duplicates: [...] }   ← 안내 (§7.3, 자동 차단 아님)
  *   400 { ok: false, reason: "invalid", field, message }
+ *   429 { ok: false, reason: "rate_limited", retryAfter }
  *   200 { ok: false, reason: "missing_config", ... } / 502 { ok: false, reason: "db_error", ... }
  */
 
 import { NextResponse } from "next/server";
 
+import { consume, limitHeaders, limitResponseBody } from "@/lib/ratelimit";
 import { parseSubmission, submitPlace, SubmitError } from "@/lib/submit";
 
 export const runtime = "nodejs";
@@ -31,6 +39,15 @@ export const dynamic = "force-dynamic";
 const NO_STORE = { "Cache-Control": "no-store" };
 
 export async function POST(request: Request) {
+  // DF-4 — 본문을 읽기 전에 봅니다.
+  const limit = await consume("place_submit", request);
+  if (!limit.allowed) {
+    return NextResponse.json(limitResponseBody(limit), {
+      status: 429,
+      headers: { ...NO_STORE, ...limitHeaders(limit) },
+    });
+  }
+
   let body: unknown = {};
   try {
     const text = await request.text();
@@ -46,7 +63,9 @@ export async function POST(request: Request) {
   if (!parsed.ok) {
     return NextResponse.json(
       { ok: false, reason: "invalid", field: parsed.field, message: parsed.message },
-      { status: 400, headers: NO_STORE },
+      // 상한 판정이 실제로 섰는지를 여기서도 드러냅니다 — 형식 오류 한 번으로 확인할 수
+      // 있으면 "조용히 뚫려 있는 상태"를 부작용 없이 점검할 수 있습니다.
+      { status: 400, headers: { ...NO_STORE, ...limitHeaders(limit) } },
     );
   }
 
@@ -69,7 +88,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(
       { ok: true, placeId: outcome.placeId, sigunguName: outcome.sigunguName },
-      { status: 200, headers: NO_STORE },
+      { status: 200, headers: { ...NO_STORE, ...limitHeaders(limit) } },
     );
   } catch (e) {
     if (e instanceof SubmitError) {

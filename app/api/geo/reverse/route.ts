@@ -11,8 +11,25 @@
  *
  * 헛호출을 막는 자리
  *   - 부산 상자 밖 좌표는 외부를 부르지 않고 그대로 돌려보냅니다.
- *   - 응답은 캐시하지 않습니다(핀이 계속 움직이므로 캐시가 맞을 일이 없습니다).
  *   - 화면이 핀 이동을 멈춘 뒤에만 부릅니다(`components/submit/PinMap.tsx`).
+ *   - **같은 좌표로 다시 물으면 1분간 CDN 이 답합니다** (DF-4, 아래).
+ *
+ * 캐시에 대해 — 두 가지 경우를 갈라 봐야 합니다 (DF-4)
+ * ----------------------------------------------------
+ * r1 은 "핀이 계속 움직이므로 캐시가 맞을 일이 없다" 는 이유로 캐시를 두지 않았습니다.
+ * **사람이 핀을 끄는 동안은 그 말이 그대로 맞습니다** — 좌표가 매번 달라 캐시가 걸리지
+ * 않습니다. 그래서 정상 사용에서는 이 캐시가 아무 일도 하지 않습니다.
+ *
+ * 갈리는 것은 **같은 좌표를 반복해서 부르는 경우**입니다. 이 경로는 인증이 없고 부를 때마다
+ * 카카오로 나가므로, 주소를 아는 사람이 한 줄짜리 반복 호출로 일 한도를 태울 수 있습니다.
+ * 그 모양은 좌표가 고정이라 **캐시가 정확히 걸립니다.** 1분이면 반복 호출 대부분이 외부까지
+ * 닿지 않고, 사람의 조작에는 영향이 없습니다.
+ *
+ * 상한(카운터)이 아니라 캐시를 택한 이유 — 이 경로는 DB 를 전혀 쓰지 않습니다. 카운터를
+ * 두면 카카오 호출을 아끼려고 DB 쓰기를 새로 만드는 셈입니다(`lib/ratelimit.ts` 머리말).
+ *
+ * 외부를 부르지 않고 끝난 응답(부산 밖 · 키 없음 · 조회 실패)은 캐시하지 않습니다 —
+ * 아낄 호출이 없고, 키를 채우자마자 화면이 살아나야 합니다.
  *
  * 응답
  *   { ok: true, inBusan, region2, address, roadAddress }
@@ -29,6 +46,9 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const NO_STORE = { "Cache-Control": "no-store" };
+
+/** DF-4 — 같은 좌표를 되풀이해 묻는 경우만 걸립니다 (위 머리말) */
+const CACHE = { "Cache-Control": "public, max-age=0, s-maxage=60" };
 
 export async function GET(request: Request) {
   const params = new URL(request.url).searchParams;
@@ -74,6 +94,6 @@ export async function GET(request: Request) {
       address: geo.address,
       roadAddress: geo.roadAddress,
     },
-    { status: 200, headers: NO_STORE },
+    { status: 200, headers: CACHE },
   );
 }
