@@ -540,6 +540,80 @@ export async function fetchPlaceImages(contentId: string): Promise<TourPlaceImag
   return out;
 }
 
+// ── 증분 동기화 목록 (`areaBasedSyncList2`, §6.3) ────────────────────────────
+//
+// **`modifiedtime` 은 "그 날짜 하루" 를 뜻합니다 — "그 날짜 이후" 가 아닙니다.**
+// 2026-08-05 실호출로 확인했습니다.
+//
+//   modifiedtime 없음        totalCount 1,620   (삭제·미노출 이력 포함 누적)
+//   modifiedtime=20250318    totalCount     5   (그 날 수정된 것만)
+//   modifiedtime=20250101    totalCount     0   ← ">= 20250101" 이었다면 1,620 이 나왔어야 합니다
+//   modifiedtime=20250318220404 (14자리)  totalCount 0   ← 8자리만 받습니다
+//
+// 이 사실이 §6.3 증분 경로의 모양을 정합니다. "마지막 실행 이후 전부" 를 한 번에 받을 수
+// 없으므로, **날짜를 하루씩 짚어 가며** 부릅니다. 하루치는 보통 수 건이라 한 호출로 끝납니다.
+// 크론이 며칠 쉬었다면 그만큼 날짜가 늘어나므로, 호출측이 한 실행의 날짜 수를 제한하고
+// 남은 날짜를 커서에 남깁니다 (§6.4 1순위).
+//
+// `showflag` 파라미터는 **넣지 않습니다.** 넣으면 그 값인 행만 오는데, 증분 경로는
+//   · `showflag='1'` → 적재·갱신
+//   · `showflag='0'` → 내려간 것으로 보고 삭제 표시 (§6.3 ②단계)
+// 두 가지를 **같은 응답에서** 갈라야 하기 때문입니다. 실측에서 파라미터 없이 부르면
+// 두 값이 함께 옵니다(1,620 = 노출분 + `showflag='0'` 903).
+
+/** `areaBasedSyncList2` 한 행. `showflag` 를 버리지 않고 그대로 들고 옵니다. */
+export interface TourSyncItem extends TourPlace {
+  /** `'1'` 노출 / `'0'` 제공기관이 내림. 값이 없으면 null */
+  showflag: string | null;
+}
+
+export interface AreaBasedSyncResult {
+  totalCount: number;
+  pageNo: number;
+  numOfRows: number;
+  /** 응답에 담겨 온 건수 (거르지 않은 값) */
+  fetched: number;
+  items: TourSyncItem[];
+}
+
+export interface AreaBasedSyncOptions {
+  /** `YYYYMMDD` 8자리. **그 날 하루**에 수정된 것만 옵니다 */
+  modifiedDate: string;
+  pageNo?: number;
+  numOfRows?: number;
+  sigunguCode?: string;
+  contentTypeId?: string;
+}
+
+/** `areaBasedSyncList2` — 하루치 변경분 목록 (§6.3 ②단계). */
+export async function fetchAreaBasedSyncList(
+  options: AreaBasedSyncOptions,
+): Promise<AreaBasedSyncResult> {
+  const pageNo = options.pageNo ?? 1;
+  const numOfRows = options.numOfRows ?? 100;
+
+  const body = await callKorService2("areaBasedSyncList2", {
+    areaCode: BUSAN_AREA_CODE,
+    sigunguCode: options.sigunguCode,
+    contentTypeId: options.contentTypeId,
+    modifiedtime: options.modifiedDate,
+    numOfRows,
+    pageNo,
+    // showflag 는 넣지 않습니다 — 위 주석 참조.
+    // arrange · listYN 도 넣지 않습니다 (D-23).
+  });
+
+  const raws = readItems(body);
+
+  return {
+    totalCount: Number(body.totalCount ?? 0) || 0,
+    pageNo: Number(body.pageNo ?? pageNo) || pageNo,
+    numOfRows: Number(body.numOfRows ?? numOfRows) || numOfRows,
+    fetched: raws.length,
+    items: raws.map((raw) => ({ ...mapRawItem(raw), showflag: emptyToNull(raw.showflag) })),
+  };
+}
+
 /** `areaCode2` 응답 1행 — 구·군 코드와 이름. */
 export interface AreaCodeItem {
   code: string;

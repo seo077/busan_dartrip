@@ -47,6 +47,33 @@ export interface BoundingBox {
 }
 
 /**
+ * 부산 대략 경계 상자. 행정 경계 폴리곤(U-10)이 아니라 넉넉히 잡은 사각형이며,
+ * **판정 기준이 아니라 오적재 감지용 눈금**입니다 — `mapx`(경도)와 `mapy`(위도)를 뒤바꾸면
+ * 위도가 129 대가 되어 한 번에 벗어납니다. 가덕도(남서)와 기장군 북단까지 들어옵니다.
+ *
+ * 백필(`scripts/lib/busan.ts`)과 증분 동기화(`lib/sync.ts`)가 **같은 눈금**을 써야 해서
+ * 여기 둡니다. 두 곳이 다른 상자를 쓰면 백필로 들어온 장소가 동기화에서 밀려나는
+ * (또는 그 반대의) 조용한 어긋남이 생깁니다.
+ */
+export const BUSAN_BBOX: BoundingBox = {
+  minLat: 34.8,
+  maxLat: 35.45,
+  minLng: 128.7,
+  maxLng: 129.4,
+};
+
+export function isInBusanBox(lat: number | null, lng: number | null): boolean {
+  if (lat === null || lng === null) return false;
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
+  return (
+    lat >= BUSAN_BBOX.minLat &&
+    lat <= BUSAN_BBOX.maxLat &&
+    lng >= BUSAN_BBOX.minLng &&
+    lng <= BUSAN_BBOX.maxLng
+  );
+}
+
+/**
  * 중심에서 반경 `radiusM` 인 원을 **완전히 감싸는** 위·경도 사각 범위.
  * 경도 폭은 위도가 높을수록 넓어지므로 `cos(lat)` 으로 나눕니다.
  */

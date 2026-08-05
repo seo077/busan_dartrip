@@ -7,26 +7,12 @@
  */
 
 /**
- * 부산 대략 경계 상자. 행정 경계 폴리곤(U-10)이 아니라 넉넉히 잡은 사각형입니다.
- * 가덕도(남서)와 기장군 북단까지 들어오도록 여유를 두었습니다.
+ * 부산 경계 상자는 **`lib/geo.ts` 가 단일 출처**입니다.
+ * 증분 동기화(`lib/sync.ts`)가 같은 눈금을 써야 하는데, 그쪽은 Next 런타임이라
+ * `scripts/` 를 import 하지 않습니다. 그래서 상자를 `lib/` 로 올리고 여기서는 다시 내보내
+ * 기존 백필 스크립트의 import 경로를 그대로 둡니다.
  */
-export const BUSAN_BBOX = {
-  minLat: 34.8,
-  maxLat: 35.45,
-  minLng: 128.7,
-  maxLng: 129.4,
-} as const;
-
-export function isInBusanBox(lat: number | null, lng: number | null): boolean {
-  if (lat === null || lng === null) return false;
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
-  return (
-    lat >= BUSAN_BBOX.minLat &&
-    lat <= BUSAN_BBOX.maxLat &&
-    lng >= BUSAN_BBOX.minLng &&
-    lng <= BUSAN_BBOX.maxLng
-  );
-}
+export { BUSAN_BBOX, isInBusanBox } from "../../lib/geo";
 
 /**
  * 구·군 마스터의 임시 중심 좌표.
