@@ -8,9 +8,14 @@
  *
  * 이 화면이 있는 이유는 두 가지입니다
  * ----------------------------------
- * 1) **공공누리 출처표시 의무.** 전 유형에서 출처 표시가 필수이고, 우리가 쓰는 데이터는
- *    9종입니다(④ §1.1). 하단 공통 표기(`components/DataSources.tsx`)는 어느 화면에서나
- *    보이는 짧은 목록이고, 이 화면은 **무엇을 어디에 쓰는지까지 밝히는 자리**입니다.
+ * 1) **공공누리 출처표시 의무.** 전 유형에서 출처 표시가 필수입니다(④ §1.1). 하단 공통
+ *    표기(`components/DataSources.tsx`)는 어느 화면에서나 보이는 짧은 목록이고, 이 화면은
+ *    **무엇을 어디에 쓰는지까지 밝히는 자리**입니다.
+ *
+ *    두 가지를 갈라 적습니다 — 서비스가 **실제로 호출하는** 데이터 8종과, 설계 단계에
+ *    한 번 **참고했을 뿐** 서비스가 호출하지 않는 자료입니다. 출처표시 의무는 활용한
+ *    데이터에 대한 것이라 앞의 것만 하단 공통 표기에 두고, 뒤의 것은 여기에만 둡니다.
+ *    참고한 사실을 숨길 이유는 없지만, 상시 출처로 적으면 사실과 다릅니다.
  * 2) 서비스가 무엇을 하지 않는지 알리기 위해서. 평점·인기·조회수를 쓰지 않는다는 것과
  *    위치를 수집하지 않는다는 것은 화면에 적지 않으면 사용자가 알 방법이 없습니다.
  *
@@ -24,10 +29,10 @@ import type { Metadata } from "next";
 export const metadata: Metadata = {
   title: "정보 — 부산 Dartrip",
   description:
-    "부산 Dartrip 서비스 소개와 데이터 출처 표기. 공공데이터 9종을 활용하며 위치 정보를 수집하지 않습니다.",
+    "부산 Dartrip 서비스 소개와 데이터 출처 표기. 공공데이터 8종을 활용하며 위치 정보를 수집하지 않습니다.",
 };
 
-/** ④ §1.1 의 9종 그대로입니다. 순서·표기는 §10 의 출처 표기 문안을 따릅니다. */
+/** 서비스가 실제로 호출하는 데이터. 순서·표기는 ④ §10 의 출처 표기 문안을 따릅니다. */
 const SOURCES: { provider: string; name: string; usage: string }[] = [
   {
     provider: "한국관광공사",
@@ -48,11 +53,6 @@ const SOURCES: { provider: string; name: string; usage: string }[] = [
     provider: "한국관광공사",
     name: "관광사진 정보",
     usage: "장소 상세의 사진",
-  },
-  {
-    provider: "한국관광공사",
-    name: "한국관광 데이터랩",
-    usage: "방문이 적은 구·군을 가려내는 데 사용 (서비스 준비 단계)",
   },
   {
     provider: "부산광역시",
@@ -76,6 +76,21 @@ const SOURCES: { provider: string; name: string; usage: string }[] = [
   },
 ];
 
+/**
+ * 설계 단계에 참고했을 뿐, 서비스가 호출하지 않는 자료.
+ *
+ * 하단 공통 표기(`components/DataSources.tsx`)에는 두지 않습니다 — 상시 출처 표기는 실제로
+ * 활용하는 데이터의 자리이기 때문입니다. 여기에는 남깁니다. 참고한 것은 사실이니까요.
+ */
+const REFERENCES: { provider: string; name: string; usage: string }[] = [
+  {
+    provider: "한국관광공사",
+    name: "한국관광 데이터랩",
+    usage:
+      "서비스를 만들기 전, 방문이 적은 구·군을 가려내는 데 한 번 참고했습니다. 서비스가 이 자료를 불러오지는 않습니다",
+  },
+];
+
 const HOW_IT_WORKS = [
   "부산 16개 구·군 중 하나를 균등한 확률로 뽑습니다.",
   "그 안의 장소 중 하나를 뽑습니다.",
@@ -87,6 +102,17 @@ const PRIVACY = [
   "회원가입이 없습니다.",
   "등록·후기는 기기 식별값으로만 구분합니다.",
 ];
+
+function SourceCard({ provider, name, usage }: { provider: string; name: string; usage: string }) {
+  return (
+    <li className="rounded-2xl border border-white/10 bg-[#171B22] p-4">
+      <p className="text-sm font-medium break-keep text-[#F2F4F7]">
+        {provider} — {name}
+      </p>
+      <p className="mt-1 text-xs leading-relaxed break-keep text-[#98A2B3]">{usage}</p>
+    </li>
+  );
+}
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -151,17 +177,7 @@ export default function AboutPage() {
 
         <ul className="space-y-2">
           {SOURCES.map((source) => (
-            <li
-              key={`${source.provider}-${source.name}`}
-              className="rounded-2xl border border-white/10 bg-[#171B22] p-4"
-            >
-              <p className="text-sm font-medium break-keep text-[#F2F4F7]">
-                {source.provider} — {source.name}
-              </p>
-              <p className="mt-1 text-xs leading-relaxed break-keep text-[#98A2B3]">
-                {source.usage}
-              </p>
-            </li>
+            <SourceCard key={`${source.provider}-${source.name}`} {...source} />
           ))}
         </ul>
 
@@ -170,6 +186,20 @@ export default function AboutPage() {
           최신성·정확성은 각 제공기관의 갱신 주기를 따르며, 실제 운영 정보는 방문 전 확인해
           주세요.
         </p>
+      </Section>
+
+      {/* ── 설계 단계 참고 자료 — 서비스가 호출하지 않는 자료 ────────────────── */}
+      <Section title="설계 단계 참고 자료">
+        <p className="mb-4 text-sm leading-relaxed break-keep text-[#98A2B3]">
+          아래 자료는 서비스를 만드는 과정에서 참고했을 뿐, 서비스가 실제로 불러오지는
+          않습니다. 그래서 위의 데이터 출처와 나누어 적습니다.
+        </p>
+
+        <ul className="space-y-2">
+          {REFERENCES.map((reference) => (
+            <SourceCard key={`${reference.provider}-${reference.name}`} {...reference} />
+          ))}
+        </ul>
       </Section>
 
       {/* ── 개인정보 (§8.1 · §2.5) ────────────────────────────────────────── */}
