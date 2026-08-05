@@ -3,6 +3,8 @@
  *
  * 설계 정본: `화면구성도.md` §3 / `API데이터설계.md` §7.2 · §8
  *
+ * 상단 바의 ⓘ 는 S6 정보 화면(`/about`)으로 갑니다 (§3.4 전이표 "ⓘ → S6").
+ *
  * 상단 바 · 설정 영역 · 데이터 출처 세 조각으로 되어 있고, 가운데 설정 영역만
  * 브라우저에서 도는 컴포넌트입니다(`components/home/DartSetup.tsx`).
  * 집계표를 **화면에서 직접 받아** 로딩·오류·다시 시도 상태를 §3.3 대로 두기 위해서입니다.
@@ -16,6 +18,8 @@
  * 브라우저 저장소나 이전 화면의 상태에 기대는 통로를 만들지 않습니다.
  * 값이 이상하면 조용히 기본값(부산 전체 · 전체 테마)으로 떨어집니다.
  */
+
+import Link from "next/link";
 
 import { DartSetup } from "@/components/home/DartSetup";
 import { DataSources } from "@/components/DataSources";
@@ -39,16 +43,16 @@ export default async function Home({
 
   return (
     <main className="mx-auto min-h-screen w-full max-w-lg bg-[#0E1116] text-[#F2F4F7]">
-      {/* 상단 바 (§2.1 · §3.2-1) — ⓘ 는 S6 정보 화면이 열리기 전까지 데이터 출처를 가리킵니다. */}
+      {/* 상단 바 (§2.1 · §3.2-1) — ⓘ → S6 정보 (§3.4 전이표) */}
       <header className="flex h-14 items-center justify-between px-5">
         <h1 className="text-lg font-bold">부산 Dartrip</h1>
-        <a
-          href="#sources"
-          aria-label="데이터 출처"
+        <Link
+          href="/about"
+          aria-label="정보"
           className="flex h-11 w-11 items-center justify-center rounded-full text-lg text-[#98A2B3]"
         >
           ⓘ
-        </a>
+        </Link>
       </header>
 
       <DartSetup initialScope={scope} initialTheme={theme} />
