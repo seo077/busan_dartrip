@@ -41,7 +41,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { AimReticle } from "@/components/home/AimReticle";
-import { BusanMap, type MapFocus } from "@/components/home/BusanMap";
+import { BusanMap, type FitBounds, type MapFocus } from "@/components/home/BusanMap";
 import { DartFlight } from "@/components/home/DartFlight";
 import { DartGlyph } from "@/components/home/DartGlyph";
 import { DartThrowZone } from "@/components/home/DartThrowZone";
@@ -224,6 +224,27 @@ export function DartSetup({
     () => (viewport ? projectTargets(aimCandidates, viewport) : []),
     [aimCandidates, viewport],
   );
+
+  /**
+   * 지도가 쉴 때 비춰야 하는 범위 — **조준 대상 16곳을 모두 감싸는 상자**입니다.
+   *
+   * 고정 확대 단계로 두면 상자 크기에 따라 부산의 일부가 화면 밖으로 밀려납니다. 밀려난
+   * 구·군은 표식이 그려지지 않는데 판정에는 남아 있어, **보이지도 않는 곳이 결과로 나오고
+   * 어떤 구·군은 아예 겨눌 수 없게** 됩니다. 대상에서 직접 범위를 만들면 그 어긋남이 없습니다.
+   */
+  const aimBounds = useMemo<FitBounds | null>(() => {
+    // 테마와 무관하게 **구·군 좌표**로만 잡습니다 — 테마를 바꿀 때마다 카메라가 흔들리지 않게.
+    const list = stats?.sigungu ?? [];
+    if (list.length === 0) return null;
+    const lats = list.map((s) => s.centerLat);
+    const lngs = list.map((s) => s.centerLng);
+    return {
+      swLat: Math.min(...lats),
+      swLng: Math.min(...lngs),
+      neLat: Math.max(...lats),
+      neLng: Math.max(...lngs),
+    };
+  }, [stats]);
 
   /**
    * 놓는 순간의 판정. 화면에 그리는 미리보기와 **같은 함수**를 씁니다 —
@@ -560,7 +581,7 @@ export function DartSetup({
 
             {/* 다트가 꽂히는 판 */}
             <div ref={mapBoxRef} className="relative">
-              <BusanMap focus={mapFocus} onViewport={setViewport} />
+              <BusanMap focus={mapFocus} fitBounds={aimBounds} onViewport={setViewport} />
 
               {/* 조준 층 — 판정 기준(구·군 표식)과 조준점을 그대로 보여 줍니다 */}
               <AimReticle

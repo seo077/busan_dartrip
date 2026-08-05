@@ -39,7 +39,12 @@ export function AimReticle({ aim, targets, active, idle, themeName }: Props) {
   const accent = blocked ? "#98A2B3" : "#FF4D4D";
 
   return (
-    <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-2xl" aria-hidden>
+    /*
+      `inset-px` 인 이유 — 이 층의 좌표는 **지도 상자 안쪽**(`clientWidth`·`clientHeight`) 기준인데
+      지도 겉테두리가 1px 이라 `inset-0` 으로 깔면 표식이 실제 지도보다 1px 어긋납니다.
+      표시와 판정이 같아야 하므로 안쪽에 정확히 맞춥니다.
+    */
+    <div className="pointer-events-none absolute inset-px overflow-hidden rounded-2xl" aria-hidden>
       {/* 당기는 동안에는 지도를 살짝 눌러 표식이 먼저 읽히게 합니다. */}
       <div
         className="absolute inset-0 bg-black/35 transition-opacity duration-200"

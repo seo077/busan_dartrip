@@ -35,6 +35,11 @@
  * 16개 구·군의 중심점을 지도 좌표로 옮겨 두고, 조준점에서 **가장 가까운 중심**을 고릅니다.
  * 화면에는 그 16개 중심이 표식으로 그려지고 고른 하나가 밝아지므로, 판정 기준이 사용자에게
  * 그대로 보입니다(행정 경계선이 아니라 "가장 가까운 표식"이 기준이라는 것이 화면에 드러납니다).
+ *
+ * **판정에 드는 것은 화면에 표식이 그려진 구·군뿐입니다.** 지도가 비추는 범위를 벗어난
+ * 중심점은 표식이 없어 사용자가 겨눌 근거를 볼 수 없는데, 그런 것이 판정에 남아 있으면
+ * 화면 어디에도 없는 이름이 결과로 나옵니다. 지도 쪽에서 조준 대상 전부가 들어오도록
+ * 범위를 맞추고(`BusanMap` `fitBounds`), 여기서 한 번 더 걸러 둘이 어긋날 자리를 없앱니다.
  */
 
 import { MIN_THROW_POWER, pullPower, type Point } from "@/lib/gesture";
@@ -216,7 +221,13 @@ export function projectTargets(
   });
 }
 
-/** 조준점에서 가장 가까운 구·군을 고릅니다. 판정은 이 하나뿐입니다. */
+/**
+ * 조준점에서 가장 가까운 구·군을 고릅니다. 판정은 이 하나뿐입니다.
+ *
+ * **넘기는 대상은 화면에 표식이 그려진 것들뿐입니다**(`resolveAim` 가 걸러 냅니다).
+ * 화면 밖 표식이 판정에 끼면 사용자가 **본 적 없는 구·군**이 결과가 되고, 그때는 조준점을
+ * 어디로 옮겨야 하는지 화면에 단서가 없습니다.
+ */
 export function pickTarget(
   point: Point,
   targets: readonly AimTarget[],
@@ -241,15 +252,23 @@ export function pickTarget(
   return { target: best, borderline: Number.isFinite(secondD) && secondD - bestD < BORDERLINE_PX };
 }
 
-/** 당김 한 번 → 조준 결과 한 벌. 화면 표시와 실제 던지기가 **같은 함수**를 씁니다. */
+/**
+ * 당김 한 번 → 조준 결과 한 벌. 화면 표시와 실제 던지기가 **같은 함수**를 씁니다.
+ *
+ * 조준 범위도 판정도 **화면에 표식이 그려진 구·군**만 씁니다. 지도가 조준 대상 전부를
+ * 담도록 맞춰져 있으면(`BusanMap` `fitBounds`) 걸러지는 것이 없고, 어떤 이유로 일부가 화면
+ * 밖으로 밀려도 "보이는 것만 결과가 된다" 는 약속이 깨지지 않습니다.
+ */
 export function resolveAim(
   pull: Point,
   box: BoxSize,
   targets: readonly AimTarget[],
 ): AimState | null {
   if (box.width <= 0 || box.height <= 0) return null;
-  const point = aimPointFromPull(pull, aimExtent(targets, box));
-  const picked = pickTarget(point, targets);
+  const visible = targets.filter((t) => !t.offscreen);
+  const pool = visible.length > 0 ? visible : targets;
+  const point = aimPointFromPull(pull, aimExtent(pool, box));
+  const picked = pickTarget(point, pool);
   if (!picked) return null;
   return { point, target: picked.target, borderline: picked.borderline };
 }

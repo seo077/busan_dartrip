@@ -14,6 +14,15 @@
  *   - 마커 없음 (결과를 미리 노출하지 않습니다 — 조준 표식은 이 위에 덧그리는 층입니다)
  *   - 범위가 특정 구·군이면 그 중심으로 카메라 이동
  *
+ * **쉴 때의 화면은 `fitBounds` 가 정합니다.** 고정 확대 단계를 쓰면 상자 크기에 따라 부산의
+ * 일부가 화면 밖으로 밀려나고, 밀려난 구·군은 표식이 그려지지 않아 **겨눌 수 없게 됩니다**.
+ * 그래서 조준 대상 전체가 들어오는 범위를 받아 `setBounds` 로 맞춥니다 — 확대 단계는 SDK 가
+ * 상자 크기에 맞춰 고릅니다. 범위를 못 받았을 때만 예전처럼 고정 단계로 떨어집니다.
+ *
+ * **상자에 `isolate` 를 겁니다.** 카카오 SDK 는 지도 안쪽 레이어에 `z-index: 1·2` 를 붙이는데,
+ * 이 상자가 쌓임 맥락을 만들지 않으면 그 값들이 바깥까지 올라와 **형제인 조준 층·꽂힌 자국이
+ * 지도 밑에 깔립니다**. 겨눈 곳이 화면에서 사라지므로 조준이 글자 하나만 남습니다.
+ *
  * **지도가 없어도 던지기는 그대로 됩니다.** 다트는 DB 집계표에서만 돌기 때문입니다(D-6).
  * 그래서 SDK 로드 실패·키 미설정은 오류 화면이 아니라 대체 패널로 처리하고,
  * 그때는 `onViewport(null)` 로 **조준이 불가능함**을 알려 균등 추첨으로 되돌립니다.
@@ -50,6 +59,14 @@ interface KakaoMap {
   setZoomable(zoomable: boolean): void;
   relayout(): void;
   getBounds(): KakaoLatLngBounds;
+  /** 주어진 범위가 다 들어오도록 중심·확대 단계를 함께 맞춥니다(여백은 px). */
+  setBounds(
+    bounds: KakaoLatLngBounds,
+    paddingTop?: number,
+    paddingRight?: number,
+    paddingBottom?: number,
+    paddingLeft?: number,
+  ): void;
 }
 interface KakaoEventBus {
   addListener(target: KakaoMap, type: string, handler: () => void): void;
@@ -58,6 +75,7 @@ interface KakaoEventBus {
 interface KakaoMaps {
   load(callback: () => void): void;
   LatLng: new (lat: number, lng: number) => KakaoLatLng;
+  LatLngBounds: new (sw: KakaoLatLng, ne: KakaoLatLng) => KakaoLatLngBounds;
   Map: new (
     container: HTMLElement,
     options: { center: KakaoLatLng; level: number },
@@ -137,11 +155,29 @@ export interface MapFocus {
   level?: number;
 }
 
+/** 쉴 때 화면에 다 들어와야 하는 범위 — 조준 대상 전체를 감싸는 상자입니다. */
+export interface FitBounds {
+  swLat: number;
+  swLng: number;
+  neLat: number;
+  neLng: number;
+}
+
+/**
+ * `setBounds` 에 넣는 여백(px).
+ * 조준 범위(`lib/aim.ts` `AIM_INSET_PX` = 18)보다 넉넉해야 가장자리 구·군의 표식이
+ * 조준 사각형 안에 들어옵니다. 표식이 그 밖으로 밀리면 그 구·군은 겨눌 수 없습니다.
+ */
+const FIT_PADDING_PX = 28;
+
 export function BusanMap({
   focus,
+  fitBounds,
   onViewport,
 }: {
   focus: MapFocus | null;
+  /** 쉴 때 다 들어와야 하는 범위. 없으면 예전처럼 고정 확대 단계로 부산 중심을 봅니다. */
+  fitBounds?: FitBounds | null;
   /**
    * 지금 비추는 범위를 알립니다(조준용). 지도를 못 쓰면 `null` 이 갑니다.
    * 카메라가 멈출 때마다(`idle`) 다시 보냅니다.
@@ -233,34 +269,57 @@ export function BusanMap({
   }, [appKey, report]);
 
   // 범위가 바뀌면 카메라만 옮깁니다. 마커는 두지 않습니다.
-  useEffect(() => {
+  const applyCamera = useCallback(() => {
     const map = mapRef.current;
     const maps = mapsRef.current;
-    if (!map || !maps || state !== "ready") return;
+    if (!map || !maps) return;
 
     if (focus) {
       map.setLevel(focus.level ?? LEVEL_DISTRICT);
       map.panTo(new maps.LatLng(focus.lat, focus.lng));
+    } else if (fitBounds) {
+      // 조준 대상이 하나도 잘리지 않게 — 확대 단계는 SDK 가 상자 크기에 맞춰 고릅니다.
+      map.setBounds(
+        new maps.LatLngBounds(
+          new maps.LatLng(fitBounds.swLat, fitBounds.swLng),
+          new maps.LatLng(fitBounds.neLat, fitBounds.neLng),
+        ),
+        FIT_PADDING_PX,
+        FIT_PADDING_PX,
+        FIT_PADDING_PX,
+        FIT_PADDING_PX,
+      );
+      report();
     } else {
       map.setLevel(LEVEL_CITY);
       map.panTo(new maps.LatLng(BUSAN_CENTER.lat, BUSAN_CENTER.lng));
     }
     // 카메라가 멈추면 `idle` 이 다시 알려 줍니다.
-  }, [focus, state]);
+  }, [focus, fitBounds, report]);
 
-  // 화면 크기가 바뀌면 상자도 비추는 범위도 달라집니다.
+  useEffect(() => {
+    if (state !== "ready") return;
+    applyCamera();
+  }, [state, applyCamera]);
+
+  /**
+   * 화면 크기가 바뀌면 상자도 비추는 범위도 달라집니다.
+   * `fitBounds` 로 맞춘 확대 단계는 **상자 크기에 딸린 값**이라, 상자가 바뀌면 다시 맞춰야
+   * 가장자리 구·군이 화면 밖으로 밀려나지 않습니다.
+   */
   useEffect(() => {
     if (state !== "ready") return;
     const onResize = () => {
       mapRef.current?.relayout();
+      applyCamera();
       report();
     };
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
-  }, [state, report]);
+  }, [state, applyCamera, report]);
 
   return (
-    <div className="relative h-56 w-full overflow-hidden rounded-2xl border border-white/10 bg-[#171B22] sm:h-72">
+    <div className="relative isolate h-56 w-full overflow-hidden rounded-2xl border border-white/10 bg-[#171B22] sm:h-72">
       <div ref={containerRef} className="h-full w-full" aria-hidden />
 
       {state !== "ready" ? (
