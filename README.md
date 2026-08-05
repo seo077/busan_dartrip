@@ -109,6 +109,7 @@ npm run backfill:theme-map -- --apply  # 마이그레이션의 테마 규칙을 
 npm run backfill:tourapi               # 관광공사 → places
 npm run backfill:busan                 # 부산명소정보 → places
 npm run backfill:detail                # 소개·전화·홈페이지 (detailCommon2)
+npm run backfill:goodfood              # 모범음식점 배지 → places.is_good_restaurant
 npm run backfill:walking               # 부산도보여행정보 → courses
 npm run backfill:sigungu -- --recenter # 구·군 중심 좌표를 실제 평균으로
 npm run backfill:report                # 적재 결과 요약
@@ -123,6 +124,12 @@ npm run backfill:report                # 적재 결과 요약
   이며 개발계정 한도는 1,000회/일입니다. 같은 날 다른 것도 돌렸다면 `-- --limit=300` 처럼
   나눠 돌리고, 다음 날 그냥 다시 실행하면 남은 것만 집습니다(재개에 커서가 필요 없습니다).
   이 백필이 끝나면 **S4 를 열 때 `detailCommon2` 를 부르지 않습니다.**
+- `backfill:goodfood` 는 **모범음식점 원본에 좌표가 없어** 도로명주소를 카카오 로컬 API 로
+  좌표로 바꾼 뒤 "50m 이내 + 상호명 일치"로 맞춥니다. 첫 실행은 포털 655회(전국 65,426건을
+  100건씩) + 카카오 342회를 쓰고, 결과를 `scripts/.cache/` 에 남겨 **다시 돌리면 외부 호출이
+  0회**입니다. 원본을 새로 받으려면 `-- --refresh`. 붙이지 못한 곳은 억지로 붙이지 않고
+  "붙이지 않은 근접 후보" 표로 출력합니다 — 없는 인증을 표시하지 않기 위해서입니다.
+  **배지는 표시 전용이라 다트 추출·정렬·필터에 관여하지 않습니다.**
 
 ### 증분 동기화 크론 — `GET /api/cron/sync`
 

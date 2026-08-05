@@ -14,6 +14,7 @@
     "backfill:tourapi": "tsx scripts/backfill/03-tourapi.ts",
     "backfill:busan": "tsx scripts/backfill/04-busan.ts",
     "backfill:detail": "tsx scripts/backfill/05-detail.ts",
+    "backfill:goodfood": "tsx scripts/backfill/06-goodfood.ts",
     "backfill:walking": "tsx scripts/backfill/07-walking.ts",
     "backfill:report": "tsx scripts/backfill/09-report.ts"
   },
