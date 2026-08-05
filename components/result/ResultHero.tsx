@@ -16,6 +16,7 @@
 import Link from "next/link";
 
 import { HeroImage } from "@/components/result/HeroImage";
+import { ShareButton } from "@/components/result/ShareButton";
 import type { PlaceView } from "@/components/result/types";
 import { themeGradient, themeIcon, themeLabel } from "@/lib/format";
 
@@ -41,15 +42,12 @@ export function ResultHero({
   sigunguName,
   nearbyCount,
   rethrowHref,
-  share,
 }: {
   place: PlaceView;
   sigunguName: string;
   nearbyCount: number;
   /** [다시 던지기] — 던졌을 때의 범위·테마를 그대로 달고 S1 로 (§5.3-6) */
   rethrowHref: string;
-  /** 우상단 공유 자리 (§5.3-10). 넘기지 않으면 자리를 비워 둡니다. */
-  share?: React.ReactNode;
 }) {
   return (
     <section
@@ -73,7 +71,10 @@ export function ResultHero({
         >
           ←
         </Link>
-        {share ?? <span className="h-11 w-11" />}
+        <ShareButton
+          title={`${place.name} — 부산 Dartrip`}
+          text={`다트가 ${sigunguName} ${place.name}에 꽂혔어요.`}
+        />
       </header>
 
       <div className="relative z-10 px-5 pb-7">

@@ -18,12 +18,14 @@
 
 import { cache } from "react";
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 
 import { DataSources } from "@/components/DataSources";
 import { NearbyList } from "@/components/result/NearbyList";
 import { ResultHero } from "@/components/result/ResultHero";
 import { ResultNotice } from "@/components/result/ResultNotice";
 import { DartError, loadThrowResult } from "@/lib/dart";
+import { themeLabel } from "@/lib/format";
 
 /**
  * 만료 시각을 요청 시점마다 다시 봐야 하므로 이 화면은 캐시하지 않습니다.
@@ -41,6 +43,53 @@ function rethrowHref(scope: string | null, theme: string | null): string {
   if (theme) query.set("theme", theme);
   const q = query.toString();
   return q ? `/?${q}` : "/";
+}
+
+/**
+ * 공유 링크가 붙여넣어졌을 때 보이는 미리보기 (D-18).
+ *
+ * 공유 버튼이 넘기는 것은 주소 하나뿐이라, 받은 사람이 열기 전에 보는 것은 전부 여기서
+ * 나옵니다. 결과가 없거나 만료됐으면 장소 이름을 흘리지 않고 서비스 이름만 둡니다.
+ * 조회는 `readResult` 로 묶여 있어 아래 화면 렌더와 DB 조회를 나눠 쓰지 않습니다.
+ */
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ throwId: string }>;
+}): Promise<Metadata> {
+  const fallback: Metadata = {
+    title: "다트 결과 — 부산 Dartrip",
+    description: "부산 지도에 다트를 던져 갈 곳을 우연으로 정하는 서비스.",
+  };
+
+  try {
+    const { throwId } = await params;
+    const lookup = await readResult(throwId);
+    if (lookup.kind !== "ok") return fallback;
+
+    const { place, sigungu } = lookup.result;
+    const title = `${place.name} — 부산 Dartrip`;
+    const description = `다트가 ${sigungu.name} ${place.name}에 꽂혔어요. ${themeLabel(place.theme)} 한 곳입니다.`;
+
+    return {
+      title,
+      description,
+      openGraph: {
+        type: "website",
+        title,
+        description,
+        images: place.image ? [place.image] : undefined,
+      },
+      twitter: {
+        card: place.image ? "summary_large_image" : "summary",
+        title,
+        description,
+      },
+    };
+  } catch {
+    // 미리보기를 못 만드는 것 때문에 화면 자체가 막히면 안 됩니다.
+    return fallback;
+  }
 }
 
 export default async function ResultPage({
