@@ -108,6 +108,7 @@ npm run backfill:sigungu               # 구·군 마스터 16행 (다른 백필
 npm run backfill:theme-map -- --apply  # 마이그레이션의 테마 규칙을 DB 에 반영
 npm run backfill:tourapi               # 관광공사 → places
 npm run backfill:busan                 # 부산명소정보 → places
+npm run backfill:detail                # 소개·전화·홈페이지 (detailCommon2)
 npm run backfill:walking               # 부산도보여행정보 → courses
 npm run backfill:sigungu -- --recenter # 구·군 중심 좌표를 실제 평균으로
 npm run backfill:report                # 적재 결과 요약
@@ -118,6 +119,10 @@ npm run backfill:report                # 적재 결과 요약
 - 도보여행은 `places` 가 아니라 `courses` 로 갑니다. 응답 전건에 구·군·주소 필드가
   없어(`0/56`) 소속 구·군을 알 수 없고, 코스는 좌표 한 점으로 대표되지 않습니다.
 - 각 스크립트는 `--dry-run` 을 받습니다. 무엇이 들어갈지 먼저 보고 싶을 때 씁니다.
+- `backfill:detail` 은 **장소 한 건당 API 를 1회** 부릅니다. 2026-08-05 실행 기준 **598회**
+  이며 개발계정 한도는 1,000회/일입니다. 같은 날 다른 것도 돌렸다면 `-- --limit=300` 처럼
+  나눠 돌리고, 다음 날 그냥 다시 실행하면 남은 것만 집습니다(재개에 커서가 필요 없습니다).
+  이 백필이 끝나면 **S4 를 열 때 `detailCommon2` 를 부르지 않습니다.**
 
 ### 증분 동기화 크론 — `GET /api/cron/sync`
 
@@ -308,6 +313,7 @@ busan_dartrip/
 │   │   ├── 02-theme-map.ts     마이그레이션의 theme_map 구문을 DB 에 반영
 │   │   ├── 03-tourapi.ts       관광공사 → places
 │   │   ├── 04-busan.ts         부산명소정보 → places
+│   │   ├── 05-detail.ts        detailCommon2 → places.overview·tel·homepage
 │   │   ├── 07-walking.ts       부산도보여행정보 → courses
 │   │   └── 09-report.ts        적재 결과 요약
 │   └── report/
@@ -327,8 +333,8 @@ busan_dartrip/
 형식 파라미터가 `_type` 이 아니라 `resultType`, 성공 코드가 `resultCode: "0000"` 이 아니라
 `header.code: "00"`, 응답 루트가 `{오퍼레이션}.item[]` 입니다. 재사용이 불가능합니다.
 
-백필 번호가 05·06·08 을 건너뛰는 것은 ④ `API데이터설계.md` §6.2 의 번호 체계를 그대로
-따르기 때문입니다. 그 자리는 국가유산·모범음식점·재집계 몫이며 아직 만들지 않았습니다.
+백필 번호가 06·08 을 건너뛰는 것은 ④ `API데이터설계.md` §6.2 의 번호 체계를 그대로
+따르기 때문입니다. 그 자리는 모범음식점·재집계 몫이며 아직 만들지 않았습니다.
 
 `app/api/cron/sync/route.ts` 는 누가 불렀는지 확인하는 일만 하고, 실제 동기화는
 `lib/sync.ts` 에 있습니다. 크론 스케줄러의 요청 처리와 파이프라인을 나눠 두면 파이프라인을

@@ -71,8 +71,9 @@ const FAIL_TTL_MS = 60 * 60 * 1000;
  * 최대 일주일 동안 옛 결과가 화면에 그대로 남습니다.
  *
  *   1 → 2  연관관광지 호출에 지역 코드(`areaCd`·`signguCd`)를 넣도록 고침 (2026-08-05)
+ *   2 → 3  사진 행에서 소개를 떼어 `kind='detail'` 로 분리 (2026-08-05)
  */
-const PAYLOAD_VERSION = 2;
+const PAYLOAD_VERSION = 3;
 
 type Kind = "photo" | "detail" | "related" | "course";
 
