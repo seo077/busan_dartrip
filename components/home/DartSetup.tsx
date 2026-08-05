@@ -489,9 +489,12 @@ export function DartSetup({
               {todayCount > 0 ? `오늘 ${todayCount}번째 다트` : "오늘의 첫 다트"}
             </p>
 
-            {/* 장소 등록 (§3.2-7). S5 는 이후 구간 작업이라 지금은 안내만 둡니다. */}
+            {/* 장소 등록 (§3.2-7) → S5 */}
             <div className="mt-6 border-t border-white/10 pt-5 text-center text-sm text-[#98A2B3]">
-              숨은 곳을 아시나요? 장소 등록은 곧 열립니다
+              숨은 곳을 아시나요?{" "}
+              <Link href="/submit" className="text-[#F2F4F7] underline underline-offset-2">
+                장소 등록하기
+              </Link>
             </div>
 
             {/*

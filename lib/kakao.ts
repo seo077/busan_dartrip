@@ -127,6 +127,91 @@ export async function reverseGeocode(
   };
 }
 
+// ── 주소·장소 이름으로 좌표 찾기 (지도 로드 실패 시의 폴백) ──────────────────
+
+export interface ForwardHit {
+  /** 화면에 보여 줄 이름 — 장소 검색이면 상호명, 주소 검색이면 주소 문자열 */
+  label: string;
+  /** 보조 표기 — 장소 검색일 때의 주소 */
+  detail: string | null;
+  lat: number;
+  lng: number;
+}
+
+const SEARCH_ADDRESS_URL = "https://dapi.kakao.com/v2/local/search/address.json";
+const SEARCH_KEYWORD_URL = "https://dapi.kakao.com/v2/local/search/keyword.json";
+
+interface SearchAddressDoc {
+  address_name?: string;
+  x?: string;
+  y?: string;
+  road_address?: { address_name?: string } | null;
+}
+
+interface SearchKeywordDoc {
+  place_name?: string;
+  address_name?: string;
+  road_address_name?: string;
+  x?: string;
+  y?: string;
+}
+
+function coords(x: unknown, y: unknown): { lat: number; lng: number } | null {
+  const lat = Number(y);
+  const lng = Number(x);
+  return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
+}
+
+/**
+ * 주소·장소 이름으로 좌표 후보를 찾습니다 (`화면구성도.md` §7.4 "지도 로드 실패 → 주소 직접 입력 폴백").
+ *
+ * 주소 검색과 장소 검색을 함께 부르는 이유 — 사람이 적는 것은 "부산 영도구 흰여울길 88" 일 때도
+ * 있고 "흰여울문화마을" 일 때도 있는데, 카카오는 이 둘을 다른 오퍼레이션으로 나눠 두었습니다.
+ *
+ * 검색은 부산 상자 안 결과만 돌려줍니다. 지도 없이 고르는 자리라 목록에 서울 주소가 섞이면
+ * 사용자가 그걸 고를 수 있고, 그러면 등록이 마지막 단계에서 막힙니다.
+ */
+export async function searchPlaces(query: string, limit = 5): Promise<ForwardHit[]> {
+  const trimmed = query.trim();
+  if (trimmed === "" || !hasKakaoRestKey()) return [];
+
+  const q = `query=${encodeURIComponent(trimmed)}&size=10`;
+  const [addressBody, keywordBody] = await Promise.all([
+    callKakao(`${SEARCH_ADDRESS_URL}?${q}`),
+    callKakao(`${SEARCH_KEYWORD_URL}?${q}`),
+  ]);
+
+  const out: ForwardHit[] = [];
+
+  for (const doc of documents<SearchKeywordDoc>(keywordBody)) {
+    const point = coords(doc.x, doc.y);
+    const label = text(doc.place_name);
+    if (!point || !label) continue;
+    out.push({
+      label,
+      detail: text(doc.road_address_name) ?? text(doc.address_name),
+      ...point,
+    });
+  }
+
+  for (const doc of documents<SearchAddressDoc>(addressBody)) {
+    const point = coords(doc.x, doc.y);
+    const label = text(doc.road_address?.address_name) ?? text(doc.address_name);
+    if (!point || !label) continue;
+    out.push({ label, detail: text(doc.address_name), ...point });
+  }
+
+  const seen = new Set<string>();
+  return out
+    .filter((hit) => {
+      const key = `${hit.label}|${hit.lat.toFixed(5)},${hit.lng.toFixed(5)}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, limit);
+}
+
 /**
  * 시·도 이름이 부산인지. 카카오는 '부산광역시' 로 돌려주지만 표기 흔들림에 대비해
  * '부산' 이 앞에 오는지만 봅니다.
