@@ -433,6 +433,113 @@ export async function iterateAreaBasedList(
   return { totalCount, calls, fetched, filteredOut, items, truncated };
 }
 
+// ── 장소 1건 상세 (S4) ───────────────────────────────────────────────────────
+//
+// 아래 두 오퍼레이션은 **2026-08-05 실호출로 확인**했습니다. 설계 ④ §3.1 오퍼레이션 표에서
+// `detailCommon2` 가 `[미확정]` 이었고, `detailImage2` 는 표에 없던 것입니다.
+//
+//   detailCommon2  contentId 1개 → 소개(overview) · 전화 · 홈페이지 · 분류 · 좌표
+//   detailImage2   contentId 1개 → 이 장소의 사진 여러 장 (originimgurl · smallimageurl)
+//
+// **사진 캐러셀(화면구성도 §6.3-1)의 실제 재료가 `detailImage2` 입니다.** 설계는 그 자리를
+// 관광사진 정보 서비스(④ §3.4)로 적었는데, 그 서비스는 장소 단위가 아니라 키워드 단위이고
+// 결손이 잦습니다. 같은 장소의 사진을 정확히 주는 것은 이쪽입니다. 관광사진 서비스는
+// `lib/photo.ts` 에서 보강용으로 따로 부릅니다 — 둘을 합쳐 캐러셀 한 줄이 됩니다.
+
+/** `detailCommon2` 가 돌려주는 것 중 S4 가 쓰는 값. */
+export interface TourPlaceDetail {
+  contentId: string;
+  title: string | null;
+  overview: string | null;
+  tel: string | null;
+  homepage: string | null;
+  address: string | null;
+  firstImage: string | null;
+  /** 공공누리 유형 코드(예: `Type3`). 사진 출처 표기 판단에 씁니다 */
+  copyrightCode: string | null;
+}
+
+/** `detailImage2` 한 장. */
+export interface TourPlaceImage {
+  url: string;
+  thumbUrl: string | null;
+  name: string | null;
+  /** 공공누리 유형 코드. `Type3` 계열은 출처 표기 의무가 있습니다 */
+  copyrightCode: string | null;
+}
+
+/**
+ * `homepage` 는 `<a href="...">...</a>` 형태로 옵니다(실측). 그대로 화면에 쓰면 태그가
+ * 글자로 보이므로 주소만 뽑습니다. 태그가 없으면 원문을 그대로 씁니다.
+ */
+export function extractHomepageUrl(raw: string | null | undefined): string | null {
+  const value = emptyToNull(raw ?? undefined);
+  if (!value) return null;
+  const href = /href\s*=\s*["']([^"']+)["']/i.exec(value);
+  if (href) return href[1];
+  const bare = /https?:\/\/[^\s"'<>]+/i.exec(value);
+  return bare ? bare[0] : value.replace(/<[^>]*>/g, "").trim() || null;
+}
+
+/** `overview` 에는 `<br>` 같은 태그가 섞여 옵니다. 줄바꿈만 남기고 걷어냅니다. */
+export function stripHtml(raw: string | null | undefined): string | null {
+  const value = emptyToNull(raw ?? undefined);
+  if (!value) return null;
+  const text = value
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<[^>]*>/g, "")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  return text === "" ? null : text;
+}
+
+/** `detailCommon2` — 장소 1건의 소개·연락처. */
+export async function fetchPlaceDetail(contentId: string): Promise<TourPlaceDetail | null> {
+  const body = await callKorService2("detailCommon2", { contentId });
+  const raws = readItems(body) as unknown as Array<Record<string, string | undefined>>;
+  const raw = raws[0];
+  if (!raw) return null;
+
+  return {
+    contentId: String(raw.contentid ?? contentId),
+    title: emptyToNull(raw.title),
+    overview: stripHtml(raw.overview),
+    tel: emptyToNull(raw.tel),
+    homepage: extractHomepageUrl(raw.homepage),
+    address: emptyToNull([raw.addr1, raw.addr2].filter(Boolean).join(" ")),
+    firstImage: emptyToNull(raw.firstimage),
+    copyrightCode: emptyToNull(raw.cpyrhtDivCd),
+  };
+}
+
+/** `detailImage2` — 장소 1건의 사진 목록. */
+export async function fetchPlaceImages(contentId: string): Promise<TourPlaceImage[]> {
+  const body = await callKorService2("detailImage2", { contentId, imageYN: "Y", numOfRows: 20, pageNo: 1 });
+  const raws = readItems(body) as unknown as Array<Record<string, string | undefined>>;
+
+  const seen = new Set<string>();
+  const out: TourPlaceImage[] = [];
+  for (const raw of raws) {
+    const url = emptyToNull(raw.originimgurl) ?? emptyToNull(raw.smallimageurl);
+    if (!url || seen.has(url)) continue;
+    seen.add(url);
+    out.push({
+      url,
+      thumbUrl: emptyToNull(raw.smallimageurl),
+      name: emptyToNull(raw.imgname),
+      copyrightCode: emptyToNull(raw.cpyrhtDivCd),
+    });
+  }
+  return out;
+}
+
 /** `areaCode2` 응답 1행 — 구·군 코드와 이름. */
 export interface AreaCodeItem {
   code: string;
