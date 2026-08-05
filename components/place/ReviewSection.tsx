@@ -8,13 +8,17 @@
  * 싶어도 넣을 값이 없습니다. 설계가 그것을 스키마로 고정한 이유를 §6.2 는 사용자에게도
  * 그대로 말하기로 했습니다 — "별점은 받지 않습니다. 숫자가 장소를 다시 가리기 때문이에요."
  *
- * 이번 회차의 범위
- * ----------------
- * 목록을 읽어 보여 주는 것까지가 이번 작업입니다. 작성 시트(§6.2)와 사진 업로드는
- * 다음 구간(Phase 5)의 일이라, 여기서는 **자리와 안내만** 둡니다. 누르면 아무 일도 일어나지
- * 않는 버튼을 두지 않으려고, 버튼 대신 준비 중이라는 사실을 적었습니다 (§2.4).
+ * 순서는 최신순 하나뿐입니다
+ * -------------------------
+ * 정렬을 고를 자리를 두지 않았습니다. 추천 수·좋아요를 셀 컬럼도 없습니다. 후기는 순위
+ * 데이터가 아니라 흔적이고, 그 흔적에 순위가 생기는 순간 다트가 발견시킨 장소가 다시
+ * 가려지기 때문입니다(D-12 · D-11 과 같은 논리).
+ *
+ * 작성은 `ReviewComposer` 가 맡습니다 — 이 컴포넌트는 서버에서 그려지고, 시트는 브라우저에서
+ * 도는 별도 조각입니다.
  */
 
+import { ReviewComposer } from "@/components/place/ReviewComposer";
 import type { ReviewView } from "@/components/place/types";
 
 function formatDate(iso: string): string {
@@ -23,7 +27,13 @@ function formatDate(iso: string): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-export function ReviewSection({ reviews }: { reviews: ReviewView[] }) {
+export function ReviewSection({
+  placeId,
+  reviews,
+}: {
+  placeId: string;
+  reviews: ReviewView[];
+}) {
   return (
     <section className="border-t border-white/10 px-5 py-6">
       <h2 className="mb-3 text-sm font-semibold text-[#98A2B3]">
@@ -38,26 +48,35 @@ export function ReviewSection({ reviews }: { reviews: ReviewView[] }) {
       ) : (
         <ul className="space-y-2">
           {reviews.map((review) => (
-            <li key={review.id} className="rounded-2xl border border-white/10 bg-[#171B22] p-4">
-              {review.body ? (
-                <p className="text-sm leading-relaxed break-keep text-[#F2F4F7]">{review.body}</p>
-              ) : (
-                <p className="text-sm text-[#98A2B3]">다녀왔어요</p>
-              )}
-              <p className="mt-2 text-xs text-[#98A2B3]">{formatDate(review.createdAt)}</p>
+            <li
+              key={review.id}
+              className="flex gap-3 rounded-2xl border border-white/10 bg-[#171B22] p-4"
+            >
+              {review.photoPath ? (
+                // Storage 공개 URL 입니다. 후기 사진은 작게 한 장뿐이라 최적화를 거치지 않습니다.
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={review.photoPath}
+                  alt=""
+                  loading="lazy"
+                  className="h-16 w-16 shrink-0 rounded-xl border border-white/10 object-cover"
+                />
+              ) : null}
+
+              <div className="min-w-0 flex-1">
+                {review.body ? (
+                  <p className="text-sm leading-relaxed break-keep text-[#F2F4F7]">{review.body}</p>
+                ) : (
+                  <p className="text-sm text-[#98A2B3]">다녀왔어요</p>
+                )}
+                <p className="mt-2 text-xs text-[#98A2B3]">{formatDate(review.createdAt)}</p>
+              </div>
             </li>
           ))}
         </ul>
       )}
 
-      <div className="mt-4 rounded-2xl border border-dashed border-white/15 p-4 text-center">
-        <p className="text-sm font-medium text-[#F2F4F7]">✓ 다녀왔어요</p>
-        <p className="mt-1 text-xs break-keep text-[#98A2B3]">
-          기록 남기기는 준비 중이에요. 한 줄과 사진 모두 선택이고,
-          <br />
-          별점은 받지 않습니다 — 숫자가 장소를 다시 가리기 때문이에요.
-        </p>
-      </div>
+      <ReviewComposer placeId={placeId} />
     </section>
   );
 }

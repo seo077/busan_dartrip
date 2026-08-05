@@ -249,7 +249,10 @@ export interface PlaceReview {
 
 /**
  * 후기 목록 (§6.3-9). **별점은 없습니다** — `reviews` 에 컬럼 자체가 없습니다(AD-6).
- * 후기 작성은 이번 범위 밖이라 이 함수는 읽기만 합니다.
+ *
+ * 정렬 키는 작성 시각 하나뿐입니다(최신순). 추천 수·조회수로 줄 세울 값이 애초에 없습니다.
+ * 작성은 `lib/review.ts` 가 맡습니다 — 읽기와 쓰기를 나눠, 화면(서버 컴포넌트)이 쓰기 경로를
+ * 지나가지 않게 합니다.
  */
 export async function loadPlaceReviews(
   placeId: string,

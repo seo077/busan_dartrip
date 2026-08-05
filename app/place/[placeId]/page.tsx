@@ -314,7 +314,7 @@ export default async function PlacePage({
         <CourseSection place={place} />
       </Suspense>
 
-      <ReviewSection reviews={reviews} />
+      <ReviewSection placeId={place.id} reviews={reviews} />
 
       <DataSources />
     </main>

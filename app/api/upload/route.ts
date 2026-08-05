@@ -27,7 +27,7 @@ import { NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 
 import { getServiceClient, supabaseStatus } from "@/lib/supabase";
-import { PHOTO_BUCKET, UPLOAD_MAX_BYTES } from "@/lib/upload";
+import { PHOTO_BUCKET, UPLOAD_MAX_BYTES, isPhotoFolder } from "@/lib/upload";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -89,10 +89,15 @@ export async function POST(request: Request) {
   }
 
   let file: File | null = null;
+  // 어느 폴더에 둘지. 값이 없거나 모르는 값이면 등록 사진으로 봅니다 (`lib/upload.ts`).
+  let folder = "submissions";
   try {
     const form = await request.formData();
     const value = form.get("file");
     if (value instanceof File) file = value;
+
+    const kind = form.get("folder");
+    if (isPhotoFolder(kind)) folder = kind;
   } catch {
     return fail("bad_request", "요청 형식이 올바르지 않습니다.");
   }
@@ -110,7 +115,7 @@ export async function POST(request: Request) {
   // 이름을 그대로 쓰지 않습니다 — 한글·공백·경로 문자가 섞이고, 같은 이름이 서로를 덮습니다.
   const now = new Date();
   const yyyymm = `${now.getUTCFullYear()}${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
-  const path = `submissions/${yyyymm}/${randomUUID()}.${kind.ext}`;
+  const path = `${folder}/${yyyymm}/${randomUUID()}.${kind.ext}`;
 
   const db = getServiceClient();
   const { error } = await db.storage.from(PHOTO_BUCKET).upload(path, bytes, {

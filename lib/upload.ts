@@ -22,3 +22,18 @@ export const UPLOAD_MAX_BYTES = 1024 * 1024;
 
 /** 사진이 들어가는 Storage 버킷 이름 (§5.6) */
 export const PHOTO_BUCKET = "place-photos";
+
+/**
+ * 버킷 안에서 사진이 놓이는 자리.
+ *
+ * 버킷은 하나입니다(§5.6 제목이 "후기·등록 사진"). 다만 나중에 사람이 콘솔에서 사진을 볼 때
+ * **등록 사진과 후기 사진이 섞여 있으면 무엇을 승인해야 하는지 알 수 없으므로**(`D-8` 승인은
+ * 사람이 합니다) 폴더로만 갈라 둡니다. 접근 권한은 둘 다 같습니다.
+ */
+export const PHOTO_FOLDERS = ["submissions", "reviews"] as const;
+
+export type PhotoFolder = (typeof PHOTO_FOLDERS)[number];
+
+export function isPhotoFolder(value: unknown): value is PhotoFolder {
+  return typeof value === "string" && (PHOTO_FOLDERS as readonly string[]).includes(value);
+}
