@@ -19,10 +19,18 @@
 
 import { callPortalAny, pick, type PortalCallResult } from "@/lib/dataportal.core";
 
-/** 서비스 경로. 2026-08-05 확인 — 경로 자체는 존재합니다(없으면 포털이 코드 12 로 답합니다). */
+/** 서비스 경로. 2026-08-05 확인 — 설계 §3.2 의 잠정 경로가 맞았습니다. */
 export const RELATED_SERVICE = "B551011/TarRlteTarService1";
 
-/** 오퍼레이션명은 설계에서 `[미확정]` 이라 후보를 순서대로 시도합니다. */
+/**
+ * 오퍼레이션명 — 2026-08-05 실호출로 **존재 여부만** 확인했습니다(코드 30 = 있음 / 12 = 없음).
+ *
+ *   실재  `searchKeyword1` · `areaBasedList1`
+ *   없음  `searchKeyword` · `areaBasedList` · `locationBasedList1`
+ *
+ * 좌표 조회(`locationBasedList1`)가 **없다는 것**도 함께 확인됐습니다 — 설계 §3.2 가 "좌표로
+ * 조회할 수 없어 다트 1단계에는 사용 불가" 라고 적어 둔 근거가 사실로 확인된 셈입니다.
+ */
 const OPERATIONS = ["searchKeyword1", "areaBasedList1"] as const;
 
 export interface RelatedPlace {

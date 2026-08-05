@@ -20,11 +20,22 @@
 
 import { callPortalAny, pick, type PortalCallResult } from "@/lib/dataportal.core";
 
-/** 서비스 경로. 2026-08-05 확인 — 경로 자체는 존재합니다. */
+/** 서비스 경로. 2026-08-05 확인 — 설계 §3.4 의 잠정 경로가 맞았습니다. */
 export const PHOTO_SERVICE = "B551011/PhotoGalleryService1";
 
-/** 오퍼레이션명은 설계에서 `[미확정]` 이라 후보를 순서대로 시도합니다. */
-const OPERATIONS = ["galleryKeywordList1", "gallerySearchList1", "galleryList1"] as const;
+/**
+ * 오퍼레이션명 — 2026-08-05 실호출로 **존재 여부만** 확인했습니다.
+ *
+ * 아직 이 서비스에 대해 서비스키가 활용신청되지 않아 본문은 못 봤지만, 포털이 없는 이름에는
+ * 코드 12(서비스 없음)로, 있는 이름에는 코드 30(키 미등록)으로 답하기 때문에 **이름이
+ * 실재하는지는 키 없이도 갈립니다**.
+ *
+ *   실재  `gallerySearchList1` · `galleryList1` · `galleryDetailList1`
+ *   없음  `galleryKeywordList1` · `galleryLocationList1` · `galleryMetaList1` · `galleryTagList1`
+ *
+ * 없는 이름을 후보에 남겨 두면 매번 헛호출이 한 번씩 더 나가므로 실재하는 것만 둡니다.
+ */
+const OPERATIONS = ["gallerySearchList1", "galleryList1"] as const;
 
 export interface GalleryPhoto {
   url: string;
