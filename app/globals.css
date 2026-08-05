@@ -20,6 +20,30 @@
   }
 }
 
+/*
+ * 놓여 있는 다트의 미세한 흔들림 — "집어서 당길 수 있다" 를 처음 온 사람이 알아채게 하는 힌트입니다.
+ * (`화면구성도.md` §4.2 — 움직이는 속성은 transform 하나뿐이라 배치 계산이 다시 일어나지 않습니다)
+ */
+@keyframes dart-bob {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-7px) rotate(-3deg);
+  }
+}
+
+.dart-bob {
+  animation: dart-bob 2.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dart-bob {
+    animation: none;
+  }
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
