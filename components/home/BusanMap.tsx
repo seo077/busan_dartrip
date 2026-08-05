@@ -111,6 +111,12 @@ export interface MapFocus {
   name: string;
   lat: number;
   lng: number;
+  /**
+   * 확대 단계. 비우면 구·군 보기(`LEVEL_DISTRICT`)입니다.
+   * S2 연출이 구·군 확정 → 좌표 확정으로 넘어갈 때 한 단계 더 당겨 보기 위해 씁니다
+   * (`화면구성도.md` §4.1 2·3단계).
+   */
+  level?: number;
 }
 
 export function BusanMap({ focus }: { focus: MapFocus | null }) {
@@ -159,7 +165,7 @@ export function BusanMap({ focus }: { focus: MapFocus | null }) {
     if (!map || !maps || state !== "ready") return;
 
     if (focus) {
-      map.setLevel(LEVEL_DISTRICT);
+      map.setLevel(focus.level ?? LEVEL_DISTRICT);
       map.panTo(new maps.LatLng(focus.lat, focus.lng));
     } else {
       map.setLevel(LEVEL_CITY);
