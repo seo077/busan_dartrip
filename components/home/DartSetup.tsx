@@ -73,13 +73,21 @@ const LEVEL_DISTRICT_REVEAL = 7;
 /** 좌표 확정 단계 — 꽂힌 자리로 한 단계 더 (§4.1 3단계) */
 const LEVEL_PIN_REVEAL = 4;
 
-export function DartSetup() {
+export function DartSetup({
+  initialScope = null,
+  initialTheme = null,
+}: {
+  /** S3 [다시 던지기] 가 돌려주는 직전 범위 (§5.3-6). 없으면 부산 전체입니다. */
+  initialScope?: string | null;
+  /** 직전 테마. 없으면 전체입니다. */
+  initialTheme?: ThemeKey | null;
+} = {}) {
   const router = useRouter();
   const reducedMotion = usePrefersReducedMotion();
 
   const [load, setLoad] = useState<LoadState>({ kind: "loading" });
-  const [scope, setScope] = useState<string | null>(null); // null = 부산 전체
-  const [theme, setTheme] = useState<ThemeKey | null>(null); // null = 전체
+  const [scope, setScope] = useState<string | null>(initialScope); // null = 부산 전체
+  const [theme, setTheme] = useState<ThemeKey | null>(initialTheme); // null = 전체
   const [sheetOpen, setSheetOpen] = useState(false);
   const [throwError, setThrowError] = useState<string | null>(null);
   const [emptyNotice, setEmptyNotice] = useState(false);
@@ -114,6 +122,16 @@ export function DartSetup() {
   useEffect(() => {
     void fetchStats();
   }, [fetchStats]);
+
+  /**
+   * 주소로 받은 범위가 실제로 있는 구·군인지 확인합니다.
+   * 없는 코드를 그대로 들고 있으면 후보 건수가 0으로 잡혀 던지기가 막히는데, 사용자는
+   * 이유를 알 수 없습니다. 조용히 부산 전체로 되돌리는 편이 낫습니다.
+   */
+  useEffect(() => {
+    if (load.kind !== "ready" || scope === null) return;
+    if (!load.stats.sigungu.some((s) => s.code === scope)) setScope(null);
+  }, [load, scope]);
 
   // 오늘 던진 횟수는 브라우저 저장소에 있으므로 마운트 후에 읽습니다(서버 렌더와 어긋나지 않게).
   useEffect(() => {

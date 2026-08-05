@@ -9,14 +9,34 @@
  *
  * 이 자리에 있던 뼈대 배포판(AD-14 — 공공데이터 적용 확인용 목록 화면)은 걷어냈습니다.
  * 같은 공공데이터 호출 경로는 `/api/tour` 에 그대로 남아 있습니다.
+ *
+ * ── 주소로 들어오는 초기 설정 (`?scope=`·`?theme=`) ──────────────────────────
+ * S3 의 [다시 던지기] 가 **던졌을 때의 범위·테마를 그대로 달고** 이 화면으로 돌아옵니다
+ * (`화면구성도.md` §5.3-6 "동일 설정 유지"). 값을 여기 서버 쪽에서 받아 넘기므로,
+ * 브라우저 저장소나 이전 화면의 상태에 기대는 통로를 만들지 않습니다.
+ * 값이 이상하면 조용히 기본값(부산 전체 · 전체 테마)으로 떨어집니다.
  */
 
 import { DartSetup } from "@/components/home/DartSetup";
 import { DataSources } from "@/components/DataSources";
+import { isThemeKey } from "@/lib/theme";
 
 export const dynamic = "force-dynamic";
 
-export default function Home() {
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const params = await searchParams;
+
+  const scopeRaw = params.scope;
+  const scope =
+    typeof scopeRaw === "string" && scopeRaw !== "" && scopeRaw.length <= 40 ? scopeRaw : null;
+
+  const themeRaw = params.theme;
+  const theme = isThemeKey(themeRaw) ? themeRaw : null;
+
   return (
     <main className="mx-auto min-h-screen w-full max-w-lg bg-[#0E1116] text-[#F2F4F7]">
       {/* 상단 바 (§2.1 · §3.2-1) — ⓘ 는 S6 정보 화면이 열리기 전까지 데이터 출처를 가리킵니다. */}
@@ -31,7 +51,7 @@ export default function Home() {
         </a>
       </header>
 
-      <DartSetup />
+      <DartSetup initialScope={scope} initialTheme={theme} />
 
       <DataSources />
     </main>
