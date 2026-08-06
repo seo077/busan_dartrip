@@ -35,6 +35,7 @@ import { NextResponse } from "next/server";
 
 import { hasAlertChannel } from "@/lib/alert";
 import { STALE_AFTER_HOURS, readSyncHealth } from "@/lib/health";
+import { readBuildInfo } from "@/lib/version";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -44,10 +45,14 @@ const NO_STORE = { "Cache-Control": "no-store" };
 export async function GET() {
   const health = await readSyncHealth();
   const healthy = health.known && !health.stale;
+  const info = readBuildInfo();
 
   return NextResponse.json(
     {
       ok: healthy,
+      // 어느 커밋이 답하고 있는지 (D-48-2 · X-42). 여기는 감시 경로라 7자만 싣고,
+      // 크론 스케줄까지 필요하면 `/api/version` 을 봅니다.
+      build: { commit: info.commitShort, ref: info.ref, source: info.source },
       // 무엇을 보고 판정했는지 그대로 드러냅니다 — 알림을 받은 사람이 다음 행동을 고르는 자리입니다.
       check: "sync_runs 마지막 성공 시각",
       staleAfterHours: STALE_AFTER_HOURS,
