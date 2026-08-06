@@ -67,7 +67,22 @@ const DEFAULT_BUDGET_MS = 40_000;
 /** 한 실행이 따라갈 최대 날짜 수. 밀린 날짜는 다음 실행이 이어받습니다 */
 const DEFAULT_MAX_DATES = 7;
 
-/** 커서가 없는 첫 실행이 되짚어 보는 날짜 수. 백필 대용이 아닙니다 */
+/**
+ * 되짚어 보는 날짜 수. 백필 대용이 아닙니다.
+ *
+ * 두 자리에 씁니다 — ① 커서가 없는 첫 실행의 시작점 ② **커서가 있어도 최소 이만큼은
+ * 다시 본다**는 바닥값(`M-IMP5-2`).
+ *
+ * ②를 둔 이유 — 공사가 수정분을 **며칠 뒤 배치에 실어 보내는 경우**가 있습니다. 수정일자는
+ * 08-06 인데 08-08 배치에 나타나면, 커서가 이미 08-07 을 가리켜 **그 건은 영영 안 들어옵니다.**
+ * `modifiedtime` 이 "그 날 하루" 라 지나간 날짜를 다시 짚지 않으면 회수 기회가 없습니다.
+ * 커서만 따라가면 되짚는 폭이 사실상 하루라 이 구멍이 열려 있었습니다.
+ *
+ * 대가가 거의 없어서 채택했습니다 — 하루치 변경분은 부산 기준 한 자릿수라 **날짜당 호출 1회**
+ * 수준이고, 폭을 3일로 두어도 실행당 2~3회가 늘 뿐입니다(개발계정 일 한도 1,000회). 시간
+ * 예산 40초에도 여유가 큽니다. `upsert` 라 같은 행을 다시 봐도 중복이 쌓이지 않습니다.
+ * 늘어난 호출은 `NC-3`(개발 기간 호출 이력)에는 오히려 유리합니다.
+ */
 const DEFAULT_LOOKBACK_DAYS = 3;
 
 /** 포털 상한이 100 입니다 */
@@ -675,7 +690,14 @@ export async function runIncrementalSync(options: SyncOptions = {}): Promise<Syn
     const saved = options.from ?? (await readCursor(db));
     // 커서가 가리키는 날짜부터 **다시** 봅니다 — 같은 날 늦게 들어온 수정분을 놓치지
     // 않기 위해서입니다. upsert 라 중복은 쌓이지 않습니다.
-    const from = saved && parseDateKey(saved) ? saved : shiftDateKey(today, -DEFAULT_LOOKBACK_DAYS);
+    const cursorStart = saved && parseDateKey(saved) ? saved : shiftDateKey(today, -DEFAULT_LOOKBACK_DAYS);
+    // 커서가 앞서 있어도 **최소 3일은 되짚습니다** — 뒤늦은 배치를 회수하는 유일한 자리입니다
+    // (`M-IMP5-2`, 상수 주석 참조). 커서가 그보다 더 밀려 있으면(백로그) 커서를 그대로 씁니다.
+    //
+    // **`?from=` 으로 부른 회수 실행에는 바닥값을 씌우지 않습니다** — 부른 사람이 시작 날짜를
+    // 지정한 것이므로 그 뜻을 덮지 않습니다(넓히는 쪽이라도 마찬가지입니다).
+    const floor = shiftDateKey(today, -DEFAULT_LOOKBACK_DAYS);
+    const from = options.from ? cursorStart : cursorStart < floor ? cursorStart : floor;
     const dates = dateRange(from > today ? today : from, today, maxDates);
 
     const [index, rules] = await Promise.all([loadSigunguIndex(db), loadThemeRules(db)]);
