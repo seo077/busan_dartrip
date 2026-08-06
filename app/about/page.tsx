@@ -38,25 +38,32 @@ export const metadata: Metadata = {
     "부산 Dartrip 서비스 소개와 데이터 출처 표기. 공공데이터 8종을 활용하며 위치 정보를 수집하지 않습니다.",
 };
 
-/** 서비스가 실제로 호출하는 데이터. 순서·표기는 ④ §10 의 출처 표기 문안을 따릅니다. */
+/**
+ * 서비스가 실제로 호출하는 데이터. 순서·표기는 ④ §10 의 출처 표기 문안을 따릅니다.
+ *
+ * `provider` 앞에 `출처: ` 가 붙어 화면에 나갑니다(`SourceCard`). **`ⓒ` 는 한국관광공사
+ * 데이터에만** 붙습니다 — 공식 공지가 형식을 정한 것이 공사 데이터이고(`NC-5` · `D-43-3`),
+ * 나머지 기관은 공공누리 표준대로 기관명만 적습니다. 자세한 근거는
+ * `components/DataSources.tsx` 머리말에 한 번만 적어 두었습니다.
+ */
 const SOURCES: { provider: string; name: string; usage: string }[] = [
   {
-    provider: "한국관광공사",
+    provider: "ⓒ한국관광공사",
     name: "국문 관광정보 서비스",
     usage: "다트가 뽑는 장소의 바탕. 장소 이름·주소·소개·사진",
   },
   {
-    provider: "한국관광공사",
+    provider: "ⓒ한국관광공사",
     name: "관광지별 연관관광지 정보",
     usage: "장소 상세의 '함께 가볼 만한 곳'",
   },
   {
-    provider: "한국관광공사",
+    provider: "ⓒ한국관광공사",
     name: "두루누비 정보 서비스",
     usage: "장소 상세의 '주변 도보 코스'",
   },
   {
-    provider: "한국관광공사",
+    provider: "ⓒ한국관광공사",
     name: "관광사진 정보",
     usage: "장소 상세의 사진",
   },
@@ -109,10 +116,28 @@ const PRIVACY = [
   "등록·후기는 기기 식별값으로만 구분합니다.",
 ];
 
-function SourceCard({ provider, name, usage }: { provider: string; name: string; usage: string }) {
+/**
+ * `credit` 이 참이면 앞에 `출처: ` 가 붙습니다 (`NC-5` 형식).
+ *
+ * 설계 단계에 참고만 한 자료(`REFERENCES`)에는 붙이지 않습니다 — 공공누리 출처표시
+ * 의무는 **활용한 데이터**에 대한 것이고, 호출하지 않는 자료에 출처 표기를 달면
+ * 활용 사실을 잘못 알리는 것이 됩니다.
+ */
+function SourceCard({
+  provider,
+  name,
+  usage,
+  credit = true,
+}: {
+  provider: string;
+  name: string;
+  usage: string;
+  credit?: boolean;
+}) {
   return (
     <li className="rounded-2xl border border-white/10 bg-[#171B22] p-4">
       <p className="text-sm font-medium break-keep text-[#F2F4F7]">
+        {credit ? "출처: " : ""}
         {provider} — {name}
       </p>
       <p className="mt-1 text-xs leading-relaxed break-keep text-[#98A2B3]">{usage}</p>
@@ -203,7 +228,11 @@ export default function AboutPage() {
 
         <ul className="space-y-2">
           {REFERENCES.map((reference) => (
-            <SourceCard key={`${reference.provider}-${reference.name}`} {...reference} />
+            <SourceCard
+              key={`${reference.provider}-${reference.name}`}
+              {...reference}
+              credit={false}
+            />
           ))}
         </ul>
       </Section>

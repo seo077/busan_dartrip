@@ -10,9 +10,17 @@
  * **관리자 승인 화면은 v1 에 없습니다**(`D-8` · `서비스기획서.md` §4.2 "등록 검수 화면" 제외).
  * 승인은 Supabase 콘솔에서 `places.status` 를 `published` 로 바꾸는 것으로 끝나며,
  * 그 방법은 `README.md` §6.1 에 적어 두었습니다.
+ *
+ * 하단 출처 표기는 **다른 화면과 같은 컴포넌트**입니다
+ * ---------------------------------------------------
+ * ④ §10 이 "전 화면 하단 공통 표기" 로 규정한 자리이며, 이 화면만 예외로 둘 이유가
+ * 없습니다 — 폼이 세로로 이어지는 문서형 화면이라 아래에 고정 막대가 없고, 다른 다섯
+ * 화면과 레이아웃 조건이 같습니다. 공공누리 출처표시는 화면 단위 의무라 **화면이
+ * 늘어날 때마다 이 한 줄을 함께 넣습니다.**
  */
 
 import { BackLink } from "@/components/place/BackLink";
+import { DataSources } from "@/components/DataSources";
 import { SubmitForm } from "@/components/submit/SubmitForm";
 
 export const metadata = {
@@ -30,6 +38,9 @@ export default function SubmitPage() {
       </header>
 
       <SubmitForm />
+
+      {/* 하단 공통 출처 표기 (④ §10 · ② §8) — 전 화면 공통이며 S5 도 예외가 아닙니다 */}
+      <DataSources />
     </main>
   );
 }
