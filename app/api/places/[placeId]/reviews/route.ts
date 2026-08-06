@@ -16,6 +16,7 @@
  *        400 { ok: false, reason: "invalid" | "bad_request", field?, message }
  *        404 { ok: false, reason: "not_found", message }
  *        409 { ok: false, reason: "duplicate", message }
+ *        429 { ok: false, reason: "rate_limited", message, detail, retryAfter }   ← ④ §11.3
  *        200 { ok: false, reason: "missing_config", ... } / 502 { ok: false, reason: "db_error", ... }
  *
  * 실패는 화면이 §6.4 의 "후기 등록 실패 — 시트 유지 + 다시 시도(입력 보존)" 로 받습니다.
@@ -28,6 +29,7 @@
 import { NextResponse } from "next/server";
 
 import { PlaceError, isUuid, loadPlaceReviews } from "@/lib/place";
+import { consume, limitHeaders, limitResponseBody } from "@/lib/ratelimit";
 import { ReviewError, createReview, hasDeviceReview, parseReview } from "@/lib/review";
 
 export const runtime = "nodejs";
@@ -94,10 +96,22 @@ export async function POST(
 ) {
   const { placeId } = await context.params;
 
+  // 후기 행은 보존 정책(④ §5.7)의 만료 대상이 **아닙니다** — 한 번 쌓이면 사람이 지워야
+  // 하는, `places` `pending` 행과 같은 성격의 자원입니다. 유일한 방어이던 부분 유니크
+  // 인덱스는 `author_ref` 가 브라우저 생성 값이라 값을 바꾸면 통과하므로, 주소 단위
+  // 상한을 함께 겁니다(④ §11.3 `DF-4` · `R-15`).
+  const limit = await consume("review", request);
+  if (!limit.allowed) {
+    return NextResponse.json(limitResponseBody(limit), {
+      status: 429,
+      headers: { ...NO_STORE, ...limitHeaders(limit) },
+    });
+  }
+
   if (!isUuid(placeId)) {
     return NextResponse.json(
       { ok: false, reason: "not_found", message: "찾을 수 없는 장소예요." },
-      { status: 404, headers: NO_STORE },
+      { status: 404, headers: { ...NO_STORE, ...limitHeaders(limit) } },
     );
   }
 
@@ -116,7 +130,7 @@ export async function POST(
   if (!parsed.ok) {
     return NextResponse.json(
       { ok: false, reason: "invalid", field: parsed.field, message: parsed.message },
-      { status: 400, headers: NO_STORE },
+      { status: 400, headers: { ...NO_STORE, ...limitHeaders(limit) } },
     );
   }
 
@@ -144,7 +158,7 @@ export async function POST(
 
     return NextResponse.json(
       { ok: true, review: outcome.review },
-      { status: 200, headers: NO_STORE },
+      { status: 200, headers: { ...NO_STORE, ...limitHeaders(limit) } },
     );
   } catch (e) {
     return failure(e);

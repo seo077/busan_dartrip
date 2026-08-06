@@ -15,11 +15,14 @@
  *   { throwId, sigungu: {code,name}, place: {...}, nearbyCount, empty: false }
  * 응답 200 — 빈 조합 (오류가 아니라 정상 응답의 한 형태, AD-10)
  *   { throwId: null, empty: true, reason: "no_place_in_combination" }
+ * 응답 429 — 주소 단위 상한 (④ §11.3 `DF-4`)
+ *   { ok: false, reason: "rate_limited", message, detail, retryAfter }
  */
 
 import { NextResponse } from "next/server";
 
 import { DartError, throwDart, type DartScope, type DartTheme } from "@/lib/dart";
+import { consume, limitHeaders, limitResponseBody } from "@/lib/ratelimit";
 import { isThemeKey } from "@/lib/theme";
 
 export const runtime = "nodejs";
@@ -58,6 +61,18 @@ function parse(body: unknown): ParsedInput | { error: string } {
 }
 
 export async function POST(request: Request) {
+  // 던질 때마다 `throws` 에 행이 하나 생깁니다. 30일 뒤 만료되지만 그 30일이 심사 기간보다
+  // 길어, 기계가 반복해서 부르면 만료 전에 무료 DB 용량이 찹니다(④ §11.3 · `R-15`).
+  // **사람이 닿지 않는 높이**로만 끊습니다 — 여기서 정상 사용이 막히면 서비스의 핵심이
+  // 멎습니다(`SC-7`). 판정 불가일 때는 통과시킵니다(fail open).
+  const limit = await consume("throw", request);
+  if (!limit.allowed) {
+    return NextResponse.json(limitResponseBody(limit), {
+      status: 429,
+      headers: { ...NO_STORE, ...limitHeaders(limit) },
+    });
+  }
+
   let body: unknown = {};
   try {
     const text = await request.text();
@@ -73,7 +88,7 @@ export async function POST(request: Request) {
   if ("error" in parsed) {
     return NextResponse.json(
       { ok: false, reason: "bad_request", message: parsed.error },
-      { status: 400, headers: NO_STORE },
+      { status: 400, headers: { ...NO_STORE, ...limitHeaders(limit) } },
     );
   }
 
@@ -83,7 +98,7 @@ export async function POST(request: Request) {
     if (outcome.empty) {
       return NextResponse.json(
         { ok: true, throwId: null, empty: true, reason: outcome.reason },
-        { status: 200, headers: NO_STORE },
+        { status: 200, headers: { ...NO_STORE, ...limitHeaders(limit) } },
       );
     }
 
@@ -105,7 +120,7 @@ export async function POST(request: Request) {
         },
         nearbyCount: outcome.nearby.length,
       },
-      { status: 200, headers: NO_STORE },
+      { status: 200, headers: { ...NO_STORE, ...limitHeaders(limit) } },
     );
   } catch (e) {
     if (e instanceof DartError) {

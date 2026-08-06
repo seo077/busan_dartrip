@@ -91,7 +91,14 @@ export interface DartHit {
   lng: number;
 }
 
-export type DartOutcome = DartHit | { kind: "empty" } | { kind: "error" };
+/**
+ * `error` 의 `message` 는 **화면에 그대로 띄울 문구**입니다.
+ *
+ * 없으면 화면이 기본 문구("다트를 놓쳤어요")를 씁니다. 상한에 걸린 경우처럼 **다시 던져도
+ * 결과가 같은 실패**는 서버가 사람이 읽는 문구를 함께 주므로 그것을 씁니다 — 기다려야 하는
+ * 상황에 "다시 던져 볼까요?" 라고 권하면 사실과 다릅니다.
+ */
+export type DartOutcome = DartHit | { kind: "empty" } | { kind: "error"; message?: string };
 
 export interface FlightSpec {
   /** 출발 지점 — 화면(뷰포트) 좌표 */
@@ -123,7 +130,8 @@ interface Options {
   requestThrow: (aimed: AimTarget | null) => Promise<DartOutcome>;
   onHit: (hit: DartHit) => void;
   onEmpty: () => void;
-  onError: () => void;
+  /** 서버가 사람이 읽는 문구를 준 경우 그대로 넘어옵니다 (없으면 화면 기본 문구) */
+  onError: (message?: string) => void;
   /** 겨눈 구·군에 그 테마 장소가 없을 때 — 서버를 부르지 않고 이유만 알립니다. */
   onBlocked?: (target: AimTarget) => void;
 }
@@ -364,7 +372,7 @@ export function useDartSequence(options: Options): DartSequence {
 
       if (outcome.kind === "error") {
         setStage("missed");
-        onError();
+        onError(outcome.message);
         await wait(MISS_MS);
         if (!aliveRef.current) return;
         setStage("idle");

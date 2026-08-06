@@ -299,6 +299,13 @@ export function DartSetup({
 
         // 빈 조합은 오류가 아니라 안내입니다 (AD-10). 화면을 연 사이 데이터가 바뀐 경우입니다.
         if (body?.ok && body.empty) return { kind: "empty" };
+
+        // 상한에 걸린 경우(④ §11.3)는 **다시 던져도 결과가 같은 유일한 실패**입니다.
+        // 서버가 얼마나 기다려야 하는지까지 문장으로 주므로 그것을 그대로 띄웁니다.
+        if (body?.reason === "rate_limited") {
+          return { kind: "error", message: body.detail ?? body.message };
+        }
+
         if (!body?.ok || !body.throwId) return { kind: "error" };
 
         return {
@@ -331,8 +338,8 @@ export function DartSetup({
     void fetchStats();
   }, [fetchStats]);
 
-  const onError = useCallback(() => {
-    setThrowError("다트를 놓쳤어요. 다시 던져 볼까요?");
+  const onError = useCallback((message?: string) => {
+    setThrowError(message ?? "다트를 놓쳤어요. 다시 던져 볼까요?");
   }, []);
 
   /** 겨눈 구·군에 그 테마 장소가 없었던 경우 (§7.2) — 서버를 부르지 않은 채로 이유만 남깁니다. */
