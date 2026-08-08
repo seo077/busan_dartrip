@@ -321,17 +321,27 @@ async function startRun(db: SupabaseClient): Promise<number> {
 }
 
 /**
- * 마무리 기록에 `cleanup` 열을 못 쓰는 상태인가.
+ * 마무리 기록에 `column` 열을 못 쓰는 상태인가.
  *
- * 마이그레이션(`20260808090000_sync_runs_cleanup.sql`) 전에는 그 열이 없어 적재가 통째로
- * 실패합니다. **그러면 정리 건수 하나 때문에 `status`·`cursor` 까지 안 남아 DF-1 이 깨집니다** —
- * 있으면 좋은 값이 없으면 안 되는 값을 무너뜨리는 자리라, 이 경우만 가려내 한 번 더 씁니다.
+ * 마이그레이션 전에는 그 열이 없어 적재가 **통째로** 실패합니다. **그러면 있으면 좋은 값
+ * 하나 때문에 `status`·`cursor` 까지 안 남아 DF-1 이 깨집니다** — 없으면 안 되는 값을
+ * 무너뜨리는 자리라, 이 경우만 가려내 그 열을 빼고 한 번 더 씁니다.
+ *
+ * 해당 열 = `cleanup`(`20260808090000_sync_runs_cleanup.sql` · `X-47`) ·
+ *          `audit`(`20260809090000_sync_runs_audit.sql` · `X-50`).
+ *
+ * **메시지를 먼저 보는 이유** — 오류 코드만으로는 **어느 열이 없는지** 가릴 수 없어,
+ * 하나만 없는 상태에서도 둘 다 버리게 됩니다. 열 이름이 메시지에 있으면 그것만 빼고,
+ * 없으면 코드만 보고 통째로 물러섭니다(안전한 쪽).
  */
-function isMissingColumn(error: { code?: string; message?: string } | null): boolean {
+function isMissingColumn(
+  error: { code?: string; message?: string } | null,
+  column: string,
+): boolean {
   if (!error) return false;
+  if ((error.message ?? "").includes(column)) return true;
   // PostgREST 는 스키마 캐시에 없는 열을 PGRST204 로, Postgres 는 42703(undefined_column)으로 답합니다.
-  if (error.code === "PGRST204" || error.code === "42703") return true;
-  return (error.message ?? "").includes("cleanup");
+  return error.code === "PGRST204" || error.code === "42703";
 }
 
 async function finishRun(
@@ -346,6 +356,8 @@ async function finishRun(
     note?: string | null;
     /** 이번 실행이 지운 건수 (`X-47`). **정리가 안 돌았으면 `null`** — 0건 삭제와 구분합니다 */
     cleanup?: CleanupCounts | null;
+    /** 이번 실행의 집계표 대조 결과 (`X-50`). **대조가 안 돌았으면 `null`** — 어긋남 0건과 구분합니다 */
+    audit?: AuditResult | null;
   },
 ): Promise<void> {
   if (id === null) return;
@@ -360,14 +372,16 @@ async function finishRun(
     finished_at: new Date().toISOString(),
   };
 
-  const { error } = await db
-    .from("sync_runs")
-    .update({ ...base, cleanup: patch.cleanup ?? null })
-    .eq("id", id);
+  const withCleanup = { ...base, cleanup: patch.cleanup ?? null };
 
-  if (error && isMissingColumn(error)) {
-    await db.from("sync_runs").update(base).eq("id", id);
-  }
+  const write = async (values: Record<string, unknown>) =>
+    (await db.from("sync_runs").update(values).eq("id", id)).error;
+
+  // 없는 열을 **하나씩** 벗겨 냅니다. 둘 다 한꺼번에 버리면 `audit` 열만 없는 상태에서
+  // 이미 있는 `cleanup` 값까지 함께 사라집니다.
+  let error = await write({ ...withCleanup, audit: patch.audit ?? null });
+  if (error && isMissingColumn(error, "audit")) error = await write(withCleanup);
+  if (error && isMissingColumn(error, "cleanup")) await write(base);
 }
 
 // ── ①-b 실패 알림 (§6.5 · DF-2) ──────────────────────────────────────────────
@@ -593,6 +607,10 @@ async function cleanup(db: SupabaseClient): Promise<CleanupCounts> {
 // 집계표가 실제보다 **작아지는** 상태는 오류를 내지 않고 결과도 정상으로 보이지만,
 // 초과분 장소가 영구히 안 뽑혀 "밀도 무관 균등" 이 조용히 깨집니다. 추출 시점에는
 // 감지할 수 없으므로 주기적 대조가 유일한 관측 수단입니다.
+//
+// 대조 결과는 `sync_runs.audit` 에 남습니다 (`X-50` · `20260809090000_sync_runs_audit.sql`).
+// 응답 본문에만 두면 **그것을 받는 것이 크론 스케줄러뿐**이라, 관측 수단을 세워 두고도
+// 돌았는지조차 확인할 수 없는 상태가 됩니다 — `cleanup` 이 `X-47` 에서 지난 자리와 같습니다.
 
 async function auditPoolStats(db: SupabaseClient): Promise<AuditResult> {
   // 실계수 — 풀 조건(§7.1)과 같은 조건으로 셉니다. 장소가 1천 건 안팎이라 전건을 읽습니다.
@@ -818,7 +836,8 @@ export async function runIncrementalSync(options: SyncOptions = {}): Promise<Syn
       cleanupCounts = await cleanup(db);
       cleanupRan = true;
 
-      // ⑥ 주 1회(월요일) 집계표 대조 — 전수 집계라 매일 돌리지 않습니다
+      // ⑥ 주 1회(월요일) 집계표 대조 — 전수 집계라 매일 돌리지 않습니다.
+      //    결과는 `sync_runs.audit` 에 남습니다 (`X-50` — 안 돈 실행은 `null`).
       const isMonday = kstDayOfWeek(startedAt) === 1;
       if ((options.forceAudit || isMonday) && Date.now() < deadline) {
         audit = await auditPoolStats(db);
@@ -842,6 +861,8 @@ export async function runIncrementalSync(options: SyncOptions = {}): Promise<Syn
         cursor,
         note,
         cleanup: cleanupRan ? cleanupCounts : null,
+        // 대조는 주 1회라 대부분의 실행에서 `null` 이고, 그것이 정상입니다 (`X-50`).
+        audit,
       });
     }
 
@@ -880,6 +901,8 @@ export async function runIncrementalSync(options: SyncOptions = {}): Promise<Syn
       note: errorNote,
       // 실패 경로에서도 정리가 이미 돌았을 수 있습니다 — 돌았으면 그 결과를 남깁니다.
       cleanup: cleanupRan ? cleanupCounts : null,
+      // 대조도 마찬가지입니다. 대조 뒤에 끊긴 실행이면 그 결과가 남고, 그 전이면 `null` 입니다 (`X-50`).
+      audit,
     });
 
     const finishedAt = new Date();

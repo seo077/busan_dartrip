@@ -200,8 +200,9 @@ curl -H "x-cron-secret: <.env.local 의 CRON_SECRET>" http://localhost:3000/api/
 | `20260806100000_rate_limits.sql` | 익명 공개 경로 상한 (`DF-4`) — `rate_limits` 표 + `consume_rate_limit` 함수 |
 | `20260806140000_function_grants.sql` | 함수 실행 권한 좁히기 (`X-37`) |
 | `20260808090000_sync_runs_cleanup.sql` | **만료 정리 건수 기록** (`X-47`) — `sync_runs.cleanup` 열 추가 |
+| `20260809090000_sync_runs_audit.sql` | **집계표 대조 결과 기록** (`X-50`) — `sync_runs.audit` 열 추가 |
 
-> 위 표는 **2026-08-08 기준 전건**입니다. 앞의 셋이 표에 없던 것은 각 마이그레이션을 더한
+> 위 표는 **2026-08-09 기준 전건**입니다. 앞의 셋이 표에 없던 것은 각 마이그레이션을 더한
 > 회차가 이 표를 함께 훑지 않았기 때문이며, 그 재발을 막는 규칙이
 > `ARCHITECTURE.md` §부록 「문서 운용 안내」 ㉮ 입니다.
 
@@ -335,7 +336,7 @@ curl -s https://busan-dartrip.vercel.app/api/version
 |---|---|---|---|
 | 1 | Supabase 프로젝트 생성 후 **URL · anon 키 · service_role 키** 확보 | DB 접속 | 마이그레이션 전 |
 | 2 | `.env.example` 을 `.env.local` 로 복사하고 실제 키 입력 | 로컬 실행 | 첫 실행 전 |
-| 3 | `supabase/migrations/` SQL 2개 실행 | 테이블 생성 | 백필 전 |
+| 3 | `supabase/migrations/` SQL **전건 실행** — 현재 **10개**, §4 표의 **파일명 순서대로** | 테이블 생성 · 이후 열·정책 추가분 반영 | 백필 전 (뒤에 늘어난 파일은 **그때그때**) |
 | 4 | Vercel 프로젝트 연결 + 환경변수 등록(**`CRON_SECRET` 포함**) + 배포 | 공개 URL 확보 · 크론 동작 | 되도록 빨리 |
 | 5 | 카카오 개발자 앱 등록 + JS 키 발급 + **배포 도메인 등록** | 지도 표시 | 지도 붙이기 전 |
 | 6 | **공공데이터포털 운영계정 신청** | 1차 심사 제출 항목 | **배포 URL 이 생긴 직후** |
