@@ -83,6 +83,19 @@ export function SubmitForm() {
     setPoint({ lat, lng });
   }, []);
 
+  /**
+   * 검색 결과를 골랐을 때 이름 칸을 채웁니다 (`D-53-2`).
+   *
+   * **이미 적어 둔 이름은 덮어쓰지 않습니다.** 여기는 공공데이터에 없는 장소를 등록하는
+   * 화면이라 **카카오가 아는 이름과 사용자가 부르는 이름이 다를 수 있고**, 사용자가 먼저
+   * 적었다면 그쪽이 등록하려는 이름입니다. 채운 뒤에도 그대로 고칠 수 있습니다.
+   */
+  const onPickPlace = useCallback((hit: { label: string }) => {
+    const label = hit.label.trim().slice(0, NAME_MAX);
+    if (label === "") return;
+    setName((prev) => (prev.trim() === "" ? label : prev));
+  }, []);
+
   useEffect(() => {
     if (!inBox) {
       setAddress(null);
@@ -302,7 +315,7 @@ export function SubmitForm() {
       <h2 className="mb-2 text-sm font-semibold text-[#98A2B3]">
         위치 <span className="text-[#FF4D4D]">*</span>
       </h2>
-      <PinMap onMove={onMove} outsideBusan={outsideBusan} />
+      <PinMap onMove={onMove} onPick={onPickPlace} outsideBusan={outsideBusan} />
 
       {outsideBusan ? (
         <p className="mt-2 text-sm text-[#FF9B9B]">부산 안의 장소만 등록할 수 있어요</p>
