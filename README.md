@@ -197,6 +197,13 @@ curl -H "x-cron-secret: <.env.local 의 CRON_SECRET>" http://localhost:3000/api/
 | `20260805150000_place_enrichment_detail_kind.sql` | 캐시 종류에 `'detail'` 추가 — 소개·전화·홈페이지를 사진 행에서 분리 |
 | `20260805170000_storage_place_photos.sql` | 등록·후기 사진 보관함(Storage 버킷 `place-photos`, 공개 읽기 · 1MB) |
 | `20260805210000_reviews_unique_author.sql` | 후기 중복 방지 — `reviews (place_id, author_ref)` 부분 유니크 인덱스 (`anon:unknown` 제외) |
+| `20260806100000_rate_limits.sql` | 익명 공개 경로 상한 (`DF-4`) — `rate_limits` 표 + `consume_rate_limit` 함수 |
+| `20260806140000_function_grants.sql` | 함수 실행 권한 좁히기 (`X-37`) |
+| `20260808090000_sync_runs_cleanup.sql` | **만료 정리 건수 기록** (`X-47`) — `sync_runs.cleanup` 열 추가 |
+
+> 위 표는 **2026-08-08 기준 전건**입니다. 앞의 셋이 표에 없던 것은 각 마이그레이션을 더한
+> 회차가 이 표를 함께 훑지 않았기 때문이며, 그 재발을 막는 규칙이
+> `ARCHITECTURE.md` §부록 「문서 운용 안내」 ㉮ 입니다.
 
 새 파일이 늘었을 때도 방법은 같습니다. **Supabase 대시보드 > SQL Editor 에 그 파일 내용을
 붙여넣고 Run** 하면 끝이며, 여러 번 실행해도 결과가 같게 써 두었습니다.
@@ -247,6 +254,9 @@ Table Editor 에 아래 9개 테이블이 보이면 됩니다.
 
 `sigungu` · `theme_map` · `places` · `dart_pool_stats` · `place_enrichment` ·
 `courses` · `reviews` · `throws` · `sync_runs`
+
+상한 마이그레이션(`20260806100000_rate_limits.sql`)까지 실행하면 **`rate_limits` 가 더해져
+10개**입니다.
 
 `theme_map` 에는 초기 매핑 규칙 13행이 들어 있고, 보강 마이그레이션까지 반영하면 **100행**이 됩니다.
 나머지 테이블은 비어 있는 것이 정상입니다. 장소 데이터 적재는 다음 단계(백필)에서 합니다.
@@ -329,6 +339,13 @@ curl -s https://busan-dartrip.vercel.app/api/version
 | 4 | Vercel 프로젝트 연결 + 환경변수 등록(**`CRON_SECRET` 포함**) + 배포 | 공개 URL 확보 · 크론 동작 | 되도록 빨리 |
 | 5 | 카카오 개발자 앱 등록 + JS 키 발급 + **배포 도메인 등록** | 지도 표시 | 지도 붙이기 전 |
 | 6 | **공공데이터포털 운영계정 신청** | 1차 심사 제출 항목 | **배포 URL 이 생긴 직후** |
+| 7 | **Supabase Authentication > 확인 메일(Confirm email) 끄기** | **이걸 끄지 않으면 가입이 되지 않습니다** — 아래 설명 | 로그인 기능을 쓰기 전 |
+
+**7번은 로그인의 전제 조건입니다.** 화면은 아이디만 받고 서버가 `<아이디>@dartrip.local` 을
+만들어 Supabase Auth 로 넘깁니다(`AD-19`). 받는 곳이 없는 주소라, 확인 메일이 켜져 있으면
+Supabase 가 그 주소로 메일을 보내려다 **`over_email_send_rate_limit` 으로 가입이 실패**합니다
+(2026-08-08 실측). 경로 = Supabase 프로젝트 > **Authentication > Sign In / Providers > Email**
+> `Confirm email` 끄기.
 
 **6번이 가장 급합니다.** 운영계정 승인요건은 세 가지인데
 ① 개발계정 테스트 로그 ② `MobileApp` 값이 서비스 고유명(`BusanDartrip`)
@@ -348,16 +365,28 @@ curl -s https://busan-dartrip.vercel.app/api/version
 busan_dartrip/
 ├── app/
 │   ├── layout.tsx              공통 레이아웃
-│   ├── page.tsx                첫 화면 (뼈대 배포판 — 관광 정보 목록 + 출처 표기)
+│   ├── page.tsx                S1 홈 · 다트 설정
+│   ├── result/[throwId]/       S3 결과
+│   ├── place/[placeId]/        S4 장소 상세
+│   ├── submit/                 S5 장소 등록
+│   ├── about/                  S6 정보
+│   ├── privacy/                S6-2 개인정보 처리방침
+│   ├── login/ · signup/        S7 로그인 · 가입
+│   ├── stamps/                 S8 구·군 스탬프판  (로그인 필수)
+│   ├── archive/                S9 여행 기록      (로그인 필수)
+│   ├── data/                   공공데이터 연동 확인 화면 (AD-14)
 │   ├── globals.css
-│   └── api/
-│       └── tour/route.ts       GET /api/tour — 관광공사 areaBasedList2 조회
+│   └── api/                    throw · pool/stats · places(+reviews·visit·enrich) ·
+│                               geo/* · upload · tour · health · version ·
+│                               auth/{signup,login,logout} · cron/sync
 ├── lib/
 │   ├── tourapi.ts              웹 전용 창구 (server-only 표식만)
 │   ├── tourapi.core.ts         관광공사 KorService2 호출 본체
 │   ├── busanapi.core.ts        부산광역시 오픈API(6260000) 호출 본체
 │   ├── theme.ts                테마 4종 · 분류 규칙 적용기
-│   └── supabase.ts             Supabase 클라이언트 (anon / service_role)
+│   ├── supabase.ts             Supabase 클라이언트 (anon / service_role)
+│   ├── auth.ts                 쿠키 세션 · 아이디→합성 이메일 (AD-19)
+│   └── visit.ts                방문 기록 · 스탬프판 · 아카이빙 (AD-21)
 ├── scripts/
 │   ├── lib/                    스크립트 공통 (환경변수 · 인자·표 · DB · 부산 상수 ·
 │   │                           테마 규칙 · 구·군 색인과 places 적재)
@@ -393,8 +422,10 @@ busan_dartrip/
 `lib/sync.ts` 에 있습니다. 크론 스케줄러의 요청 처리와 파이프라인을 나눠 두면 파이프라인을
 스크립트·테스트에서도 같은 코드로 부를 수 있습니다.
 
-앞으로 추가될 것: `app/submit` · `app/about` · `lib/kakao.ts` ·
-`scripts/backfill/06-goodfood.ts` · `scripts/backfill/08-recount.ts`
+위 목록 중 `app/submit` · `app/about` · `lib/kakao.ts` · `scripts/backfill/06-goodfood.ts` 는
+**이미 있습니다** — 앞선 회차에 만들어졌는데 이 절이 계속 "앞으로 추가될 것" 으로 적고
+있었습니다(2026-08-08 정정). **아직 없는 것은 `scripts/backfill/08-recount.ts` 하나**이며,
+그 몫(집계표 재집계·대조)은 현재 증분 크론이 주 1회 수행합니다(④ §6.3 ⑥).
 
 ---
 
