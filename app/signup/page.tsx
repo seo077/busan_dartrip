@@ -20,7 +20,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "가입하기 — 부산 Dartrip",
-  description: "아이디와 비밀번호만 받습니다. 이메일·이름·프로필을 받지 않습니다.",
+  description: "가입할 때 아이디와 비밀번호만 받습니다. 이메일·이름·프로필을 받지 않습니다.",
 };
 
 export default async function SignupPage({

@@ -1,9 +1,9 @@
 /**
  * S6-2 — 개인정보 처리방침.
  *
- * 설계 정본: `화면구성도.md` §17(전체 — §17.2 담을 항목) · §8.1(S6 개인정보 블록)
- *            `ARCHITECTURE.md` `AD-19`(수집 항목) · `AD-9`(위치 미수집) · `AD-20`
- *            `API데이터설계.md` §5.7(보존 정책) · `D-46-4`·`D-46-10`
+ * 설계 정본: `화면구성도.md` §17(전체 — §17.2 담을 항목 · §17.5 복귀 경로) · §8.1(S6 개인정보 블록)
+ *            `ARCHITECTURE.md` `AD-19`(가입이 받는 항목) · `AD-9`(위치 미수집) · `AD-20`
+ *            `API데이터설계.md` §5.7(보존 정책) · §11(`DF-4`·`DF-5` 남용 차단) · `D-46-4`·`D-46-10`
  *
  * 왜 별도 페이지인가 (§17.1)
  * -------------------------
@@ -11,6 +11,24 @@
  * 없다"* 였습니다. **로그인이 생기면서 두 문장이 다 사실이 아니게 됩니다.** 처리방침은
  * 수집 항목·이용 목적·보유 기간·파기 절차·이용자 권리·보호책임자를 각각 밝혀야 하는 문서라
  * 정보 화면의 한 블록에 넣으면 그 화면이 처리방침에 잡아먹힙니다.
+ *
+ * 자동으로 기록되는 항목을 왜 따로 적는가 (§2 — 2026-08-09 신설)
+ * -------------------------------------------------------------
+ * 가입이 받는 항목은 아이디·비밀번호 둘뿐이지만, **남용 차단 카운터**(`lib/ratelimit.ts` ·
+ * `DF-4`·`DF-5`)가 접속 주소와 로그인 시도 아이디를 `rate_limits.subject` 에 담고 약 2일
+ * 뒤 정기 삭제합니다. 앞 문단만 적고 이 사실을 빼면 **문서가 저장 사실과 어긋납니다.**
+ * 그래서 §1(가입이 받는 것)과 §2(쓰는 동안 자동으로 남는 것)를 나눠 적습니다.
+ *
+ * "약 2일" 이라고 적은 이유 — 삭제는 매일 도는 크론의 `cleanup()` 이 합니다(보존 2일).
+ * 크론이 멎으면 그만큼 남으므로(`ARCHITECTURE.md` `R-19`) **"최대 2일" 로 단정하지
+ * 않습니다.** 단정하면 그 문장이 다시 사실과 어긋날 수 있습니다.
+ *
+ * 어디로 돌아가는가 (§17.5 — `X-51`)
+ * ----------------------------------
+ * 이 페이지를 여는 자리가 둘(S6 정보 화면 · 가입 화면)인데 복귀는 `/about` 한 곳으로
+ * 고정돼 있었습니다. **출발지를 `?from=` 으로 받아 그 자리로 돌려보냅니다.** 값은
+ * 흰 목록으로만 받고(`about`·`signup`) 그 밖의 값·빈 값은 전부 `/about` 입니다 —
+ * 주소를 그대로 믿고 이동하면 밖으로 튕겨 보내는 통로가 됩니다.
  *
  * ★ 제출 전에 반드시 바꿔야 하는 값이 하나 있습니다
  * ------------------------------------------------
@@ -26,7 +44,8 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "개인정보 처리방침 — 부산 Dartrip",
-  description: "수집 항목은 아이디와 비밀번호 2건입니다. 위치 정보를 수집하지 않습니다.",
+  description:
+    "가입할 때 받는 것은 아이디와 비밀번호 2건입니다. 위치 정보를 수집하지 않으며, 남용을 막기 위한 접속 기록은 약 2일 뒤 지웁니다.",
 };
 
 /** ★ 제출 전 교체 대상 (`D-46-10` · `PROGRESS.md` §남은 작업 39번) */
@@ -36,7 +55,19 @@ const CONTACT = {
 };
 
 /** 시행일 = 게시일 (§17.2 마지막 행) */
-const EFFECTIVE_DATE = "2026년 8월 8일";
+const EFFECTIVE_DATE = "2026년 8월 9일";
+
+/**
+ * 돌아갈 자리 (§17.5 — `X-51`).
+ *
+ * 흰 목록입니다. 여기 없는 값은 전부 `/about` 으로 떨어집니다.
+ */
+const RETURN_TO: Record<string, { href: string; label: string }> = {
+  about: { href: "/about", label: "정보" },
+  signup: { href: "/signup", label: "가입" },
+};
+
+const DEFAULT_RETURN = RETURN_TO.about;
 
 function Article({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -62,13 +93,21 @@ function Bullets({ items }: { items: string[] }) {
   );
 }
 
-export default function PrivacyPage() {
+export default async function PrivacyPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const params = await searchParams;
+  const raw = params.from;
+  const back = (typeof raw === "string" ? RETURN_TO[raw] : undefined) ?? DEFAULT_RETURN;
+
   return (
     <main className="mx-auto min-h-screen w-full max-w-lg bg-[#0E1116] text-[#F2F4F7]">
       <header className="sticky top-0 z-20 flex h-14 items-center gap-1 bg-[#0E1116]/85 px-2 backdrop-blur">
         <Link
-          href="/about"
-          aria-label="뒤로"
+          href={back.href}
+          aria-label={`뒤로 — ${back.label} 화면으로`}
           className="flex h-11 w-11 items-center justify-center rounded-full text-xl text-[#F2F4F7]"
         >
           <span aria-hidden>←</span>
@@ -79,12 +118,15 @@ export default function PrivacyPage() {
       <section className="px-5 pt-2 pb-6">
         <p className="text-sm leading-relaxed break-keep text-[#98A2B3]">
           부산 Dartrip(이하 &lsquo;서비스&rsquo;)은 이용자의 개인정보를 최소한으로만 받습니다.
-          받는 것은 <strong className="text-[#F2F4F7]">아이디와 비밀번호 2건</strong>이며, 그
-          밖의 항목은 받지 않습니다.
+          가입할 때 받는 것은{" "}
+          <strong className="text-[#F2F4F7]">아이디와 비밀번호 2건</strong>입니다. 그 밖에,
+          서비스를 지키기 위해{" "}
+          <strong className="text-[#F2F4F7]">접속 주소를 잠깐 기록했다가 지웁니다</strong>{" "}
+          (아래 2항).
         </p>
       </section>
 
-      <Article title="1. 수집하는 항목">
+      <Article title="1. 가입할 때 받는 항목">
         <Bullets
           items={[
             "아이디 — 로그인에 쓰는 이름입니다.",
@@ -97,7 +139,21 @@ export default function PrivacyPage() {
         </p>
       </Article>
 
-      <Article title="2. 수집하지 않는 것">
+      <Article title="2. 서비스를 쓰는 동안 자동으로 기록되는 항목">
+        <Bullets
+          items={[
+            "접속 주소(IP) — 짧은 시간에 같은 곳에서 요청이 몰릴 때 그것을 막기 위해 셉니다. 사진 올리기·장소 등록·후기·다트처럼 한 번 쓰면 되돌아오지 않는 자원을 지키는 용도입니다.",
+            "로그인에 시도한 아이디 — 한 아이디에 비밀번호를 반복해 넣어 보는 시도를 막기 위해 같은 방식으로 셉니다. 가입되지 않은 아이디도 시도가 있으면 세어집니다.",
+          ]}
+        />
+        <p className="mt-3 text-xs leading-relaxed break-keep text-[#98A2B3]">
+          이 두 값은 남용을 막는 계수기에만 쓰고, <strong>약 2일이 지나면 정기적으로 지웁니다.</strong>{" "}
+          계정 정보나 방문 기록과 연결하지 않고, 광고·분석·프로파일링에도 쓰지 않습니다.
+          로그인하지 않아도 서비스를 쓰는 동안에는 이 기록이 남습니다.
+        </p>
+      </Article>
+
+      <Article title="3. 수집하지 않는 것">
         <Bullets
           items={[
             "위치 정보 — 브라우저에 위치 권한을 요청하는 자리 자체가 없습니다. 다트의 기준점은 구·군이라 현재 위치가 필요하지 않습니다.",
@@ -106,11 +162,12 @@ export default function PrivacyPage() {
         />
       </Article>
 
-      <Article title="3. 이용 목적">
+      <Article title="4. 이용 목적">
         <Bullets
           items={[
             "로그인 — 이 계정이 본인의 것임을 확인합니다.",
             "내 방문 기록의 소유자 구분 — 스탬프판과 여행 기록이 누구의 것인지 가릅니다.",
+            "서비스 보호 — 위 2항의 기록으로 짧은 시간에 몰리는 요청을 막습니다.",
           ]}
         />
         <p className="mt-3 text-xs leading-relaxed break-keep text-[#98A2B3]">
@@ -119,23 +176,27 @@ export default function PrivacyPage() {
         </p>
       </Article>
 
-      <Article title="4. 보유 및 이용 기간">
+      <Article title="5. 보유 및 이용 기간">
         <Bullets
           items={[
             "계정 정보 — 계정을 삭제할 때까지 보관합니다.",
             "방문 기록과 후기 — 기간 만료로 자동 삭제되지 않습니다. 이용자가 남긴 기록이기 때문입니다.",
+            "위 2항의 자동 기록 — 약 2일 뒤 정기적으로 지웁니다.",
           ]}
         />
       </Article>
 
-      <Article title="5. 파기 절차">
+      <Article title="6. 파기 절차">
         <p>
           아래 연락처로 계정 삭제를 요청하시면 본인 확인 후 계정과 그 계정에 딸린 방문 기록을
           지웁니다. 지운 정보는 되살릴 수 없습니다.
         </p>
+        <p className="mt-3 text-xs leading-relaxed break-keep text-[#98A2B3]">
+          위 2항의 자동 기록은 요청을 기다리지 않고 정기적으로 지워집니다.
+        </p>
       </Article>
 
-      <Article title="6. 이용자의 권리">
+      <Article title="7. 이용자의 권리">
         <Bullets
           items={[
             "열람 — 내 방문 기록은 로그인 후 '내 여행 기록' 화면에서 언제든 볼 수 있습니다.",
@@ -145,7 +206,7 @@ export default function PrivacyPage() {
         />
       </Article>
 
-      <Article title="7. 제3자 제공 및 처리 위탁">
+      <Article title="8. 제3자 제공 및 처리 위탁">
         <p>개인정보를 제3자에게 판매하거나 제공하지 않습니다. 서비스 운영에 아래를 씁니다.</p>
         <Bullets
           items={[
@@ -160,11 +221,11 @@ export default function PrivacyPage() {
         </p>
       </Article>
 
-      <Article title="8. 개인정보 보호책임자">
+      <Article title="9. 개인정보 보호책임자">
         <Bullets items={[`책임자 — ${CONTACT.officer}`, `연락처 — ${CONTACT.email}`]} />
       </Article>
 
-      <Article title="9. 시행일">
+      <Article title="10. 시행일">
         <p>본 방침은 {EFFECTIVE_DATE}부터 적용합니다.</p>
       </Article>
     </main>

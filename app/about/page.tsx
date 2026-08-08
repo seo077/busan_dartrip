@@ -122,7 +122,8 @@ const PRIVACY = [
   "위치 정보를 수집·저장하지 않습니다.",
   "로그인은 선택입니다. 스탬프와 여행 기록을 쓸 때만 필요하고, 다트·후기·장소 등록은 로그인 없이 됩니다.",
   "로그인하지 않으면 등록·후기는 기기 식별값으로만 구분합니다.",
-  "받는 것은 아이디와 비밀번호뿐입니다.",
+  "가입할 때 받는 것은 아이디와 비밀번호뿐입니다.",
+  "남용을 막기 위해 접속 주소를 잠깐 기록했다가 약 2일 뒤 지웁니다.",
 ];
 
 /**
@@ -264,7 +265,7 @@ export default function AboutPage() {
           기기에서 만든 임의의 값이며, 누구인지 알아내는 데 쓰지 않습니다.
         </p>
         <Link
-          href="/privacy"
+          href="/privacy?from=about"
           className="mt-4 flex min-h-12 w-full items-center justify-between rounded-2xl border border-white/10 bg-[#171B22] px-4 text-sm text-[#F2F4F7]"
         >
           <span>개인정보 처리방침</span>

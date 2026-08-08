@@ -182,7 +182,8 @@ export function AuthForm({ mode, next }: { mode: Mode; next: string | null }) {
 
           {/* ── 수집 항목 · 미승계 (§14.3 · `D-46-4`·`D-46-8`) ──────────── */}
           <ul className="mt-4 space-y-2 text-xs leading-relaxed break-keep text-[#98A2B3]">
-            <li>· 받는 것은 아이디와 비밀번호뿐입니다. 이메일·이름·프로필을 받지 않습니다.</li>
+            <li>· 가입할 때 받는 것은 아이디와 비밀번호뿐입니다. 이메일·이름·프로필을 받지 않습니다.</li>
+            <li>· 남용을 막기 위해 접속 주소를 잠깐 기록했다가 약 2일 뒤 지웁니다.</li>
             <li>· 로그인 전에 남긴 후기와 등록은 이 계정으로 옮겨지지 않습니다.</li>
           </ul>
         </>
@@ -208,7 +209,7 @@ export function AuthForm({ mode, next }: { mode: Mode; next: string | null }) {
       {isSignup ? (
         <p className="mt-3 text-center text-xs text-[#98A2B3]">
           가입하면{" "}
-          <Link href="/privacy" className="underline underline-offset-2">
+          <Link href="/privacy?from=signup" className="underline underline-offset-2">
             개인정보 처리방침
           </Link>
           에 동의하는 것으로 봅니다.
