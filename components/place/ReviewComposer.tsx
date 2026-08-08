@@ -24,6 +24,23 @@
  * 따라 버튼을 감출 뿐입니다. 그래서 이 파일을 고쳐 버튼을 되살려도 적재는 되지 않습니다
  * (`lib/review.ts` §"한 기기는 한 장소에 한 번").
  *
+ * 방문과 후기를 가릅니다 (r7 · §14.6)
+ * -----------------------------------
+ * 기존 시트는 제목이 `다녀왔어요` 이고 버튼이 `남기기` 하나였습니다. **두 가지가 한 버튼에
+ * 겹쳐 있었습니다** — "다녀왔다는 사실" 과 "한 줄을 남긴다". 로그인이 생기면서 이 둘을
+ * 가릅니다(`AD-21`).
+ *
+ *  - **비로그인** — 종전 그대로입니다. 익명으로 후기가 남고, 시트 아래에 로그인 안내 한 줄.
+ *  - **로그인** — 위에 `✓ 다녀왔어요` 가 하나 더 붙습니다. 한 줄·사진을 비워 둔 채 이것만
+ *    눌러도 방문 1건이 기록됩니다.
+ *  - **이미 방문만 찍어 둠** — 그 버튼이 `✓ 다녀온 곳`(비활성)이 되고 **한 줄·사진 입력은
+ *    그대로 열려 있습니다.** 방문을 먼저 찍고 나중에 후기를 쓰는 경로가 정상이며, 이때
+ *    새 행이 생기지 않고 **기존 행이 채워집니다**(④ §5.3.1).
+ *  - **이미 후기를 씀** — 종전대로 시트가 열리지 않습니다.
+ *
+ * 로그인 여부도 **서버 답에서 받습니다**(`signedIn`) — 쿠키 세션이라 브라우저 쪽에서
+ * 들여다볼 값이 없고, 있다 해도 그것으로 판정하면 서버와 답이 갈립니다.
+ *
  * 실패해도 쓴 것을 잃지 않습니다
  * -----------------------------
  * §6.4 의 "후기 등록 실패 — 시트 유지 + 다시 시도(입력 내용 보존)" 그대로입니다. 실패 시
@@ -34,6 +51,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { deviceRef } from "@/lib/device";
@@ -46,6 +64,17 @@ type Phase =
   | { kind: "editing" }
   | { kind: "submitting" }
   | { kind: "failed"; message: string; detail?: string };
+
+/** 서버가 알려 주는 내 상태 (§14.6 의 네 갈래를 이 셋으로 가릅니다) */
+interface Standing {
+  /** 이 장소에 내 행이 있는가 (방문만이든 후기든) */
+  exists: boolean;
+  /** 그 행에 내용이 들어 있는가 = 후기까지 썼는가 */
+  hasContent: boolean;
+  signedIn: boolean;
+}
+
+const UNKNOWN: Standing = { exists: false, hasContent: false, signedIn: false };
 
 export function ReviewComposer({ placeId }: { placeId: string }) {
   const router = useRouter();
@@ -60,8 +89,10 @@ export function ReviewComposer({ placeId }: { placeId: string }) {
   const [uploadedUrl, setUploadedUrl] = useState<string | null>(null);
   const [phase, setPhase] = useState<Phase>({ kind: "editing" });
   const [done, setDone] = useState(false);
-  /** 이 기기가 이미 남겼는지. `unknown` = 아직 서버에 물어보는 중 */
-  const [mine, setMine] = useState<"unknown" | "yes" | "no">("unknown");
+  const [standing, setStanding] = useState<Standing>(UNKNOWN);
+  /** 방문만 따로 기록하는 중 (§14.6 `✓ 다녀왔어요`) */
+  const [visiting, setVisiting] = useState(false);
+  const [visitError, setVisitError] = useState<string | null>(null);
 
   const fileRef = useRef<HTMLInputElement | null>(null);
 
@@ -78,9 +109,14 @@ export function ReviewComposer({ placeId }: { placeId: string }) {
         const res = await fetch(url, { cache: "no-store" });
         const result = await res.json();
         if (!alive) return;
-        setMine(result?.ok && result.mine === true ? "yes" : "no");
+        if (!result?.ok) return;
+        setStanding({
+          exists: result.mine === true,
+          hasContent: result.mineHasContent === true,
+          signedIn: result.signedIn === true,
+        });
       } catch {
-        if (alive) setMine("no");
+        // 못 물어봤으면 버튼을 그대로 둡니다 — 실제 차단은 서버가 합니다(위 머리말).
       }
     })();
 
@@ -196,7 +232,7 @@ export function ReviewComposer({ placeId }: { placeId: string }) {
       if (result?.reason === "duplicate") {
         setOpen(false);
         setPhase({ kind: "editing" });
-        setMine("yes");
+        setStanding((prev) => ({ ...prev, exists: true, hasContent: true }));
         router.refresh();
         return;
       }
@@ -218,12 +254,39 @@ export function ReviewComposer({ placeId }: { placeId: string }) {
       setPhotoError(null);
       setPhase({ kind: "editing" });
       setDone(true);
-      setMine("yes");
+      setStanding((prev) => ({ ...prev, exists: true, hasContent: true }));
       router.refresh();
     } catch {
       setPhase({ kind: "failed", message: "저장하지 못했어요. 연결을 확인해 주세요." });
     }
   }, [body, photo, placeId, router, uploadedUrl]);
+
+  /**
+   * `✓ 다녀왔어요` — 한 줄·사진 없이 방문 1건만 (§14.6 · `D-46-6`).
+   *
+   * 실패해도 **시트를 닫지 않습니다** — 한 줄을 쓰던 중일 수 있고, §6.4 의 "쓴 것을 잃지
+   * 않는다" 와 같은 자리입니다.
+   */
+  const markVisited = useCallback(async () => {
+    setVisiting(true);
+    setVisitError(null);
+    try {
+      const res = await fetch(`/api/places/${encodeURIComponent(placeId)}/visit`, {
+        method: "POST",
+      });
+      const result = await res.json();
+      if (!result?.ok) {
+        setVisitError(result?.message ?? "기록하지 못했어요.");
+        return;
+      }
+      setStanding((prev) => ({ ...prev, exists: true }));
+      router.refresh();
+    } catch {
+      setVisitError("기록하지 못했어요. 연결을 확인해 주세요.");
+    } finally {
+      setVisiting(false);
+    }
+  }, [placeId, router]);
 
   const submitting = phase.kind === "submitting";
 
@@ -231,7 +294,7 @@ export function ReviewComposer({ placeId }: { placeId: string }) {
     <>
       {/* ── 여는 버튼 (§6.1 맨 아래 칸 · §6.3-10 "항상 표시") ───────────────
           이미 남긴 기기에는 버튼 대신 안내가 그 자리에 들어갑니다. */}
-      {mine === "yes" ? (
+      {standing.exists && standing.hasContent ? (
         <div className="mt-4 rounded-2xl border border-white/10 bg-[#171B22] p-4 text-center">
           <p className="text-sm break-keep text-[#F2F4F7]">
             {done ? "기록을 남겼어요. 고맙습니다." : "이미 다녀오셨다고 남기셨어요."}
@@ -277,6 +340,31 @@ export function ReviewComposer({ placeId }: { placeId: string }) {
                 ✕
               </button>
             </div>
+
+            {/* ── ✓ 다녀왔어요 (§14.6 — 로그인한 사람에게만) ────────────────
+                이미 찍어 뒀으면 `✓ 다녀온 곳`(비활성)으로 바뀌고, **아래 입력은 그대로
+                열려 있습니다** — 방문을 먼저 찍고 나중에 후기를 쓰는 경로가 정상입니다. */}
+            {standing.signedIn ? (
+              <>
+                <button
+                  type="button"
+                  disabled={standing.exists || visiting}
+                  onClick={() => void markVisited()}
+                  className="mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-[#FF4D4D]/50 bg-[#FF4D4D]/10 text-sm font-semibold text-[#F2F4F7] disabled:border-white/10 disabled:bg-white/5 disabled:text-[#98A2B3]"
+                >
+                  <span aria-hidden>✓</span>
+                  {standing.exists ? "다녀온 곳" : visiting ? "기록하는 중…" : "다녀왔어요"}
+                </button>
+                {visitError ? (
+                  <p className="mt-2 text-sm break-keep text-[#FF9B9B]">{visitError}</p>
+                ) : null}
+                {standing.exists ? (
+                  <p className="mt-2 text-center text-xs break-keep text-[#98A2B3]">
+                    스탬프에 담겼어요. 한 줄은 나중에 덧붙일 수 있어요.
+                  </p>
+                ) : null}
+              </>
+            ) : null}
 
             {/* ── 한 줄 (선택) ─────────────────────────────────────────── */}
             <h3 className="mt-4 mb-2 text-sm font-semibold text-[#98A2B3]">한 줄 남기기 (선택)</h3>
@@ -377,6 +465,16 @@ export function ReviewComposer({ placeId }: { placeId: string }) {
               <br />
               숫자가 장소를 다시 가리기 때문이에요.
             </p>
+
+            {/* ── 로그인 안내 (§14.6 비로그인 행) — **누르지 않아도 됩니다** ─── */}
+            {standing.signedIn ? null : (
+              <Link
+                href={`/login?next=${encodeURIComponent(`/place/${placeId}`)}`}
+                className="mt-4 flex min-h-11 items-center justify-center text-xs break-keep text-[#98A2B3] underline underline-offset-2"
+              >
+                로그인하면 다녀온 곳이 스탬프로 모여요 →
+              </Link>
+            )}
           </div>
         </div>
       )}

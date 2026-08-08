@@ -28,9 +28,10 @@
 
 import { NextResponse } from "next/server";
 
+import { readCurrentUser } from "@/lib/auth";
 import { PlaceError, isUuid, loadPlaceReviews } from "@/lib/place";
 import { consume, limitHeaders, limitResponseBody } from "@/lib/ratelimit";
-import { ReviewError, createReview, hasDeviceReview, parseReview } from "@/lib/review";
+import { ReviewError, createReview, findExistingReview, parseReview } from "@/lib/review";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -76,15 +77,31 @@ export async function GET(
   // 이때만 캐시를 끕니다 — 목록만 달라고 한 요청은 지금까지처럼 1분 캐시를 씁니다.
   const author = new URL(request.url).searchParams.get("author");
 
+  // **로그인해 있으면 브라우저가 보낸 값을 쓰지 않습니다** (④ §5.8 r12). 신원을 정하는
+  // 자리는 서버 한 곳이어야 하고, 그것은 묻는 경로에서도 같습니다.
+  const user = await readCurrentUser();
+  const subject = user?.authorRef ?? author;
+
   try {
     const reviews = await loadPlaceReviews(placeId);
 
-    if (author === null) {
+    if (subject === null) {
       return NextResponse.json({ ok: true, reviews }, { status: 200, headers: LIST_CACHE });
     }
 
-    const mine = await hasDeviceReview(placeId, author);
-    return NextResponse.json({ ok: true, reviews, mine }, { status: 200, headers: NO_STORE });
+    // 한 행이 두 가지를 뜻하게 됐습니다(`AD-21`) — 있는지(`mine`)와 **내용이 들어 있는지**
+    // (`mineHasContent`)를 갈라 답합니다. 화면이 §14.6 의 네 상태를 이 둘로 가릅니다.
+    const existing = await findExistingReview(placeId, subject);
+    return NextResponse.json(
+      {
+        ok: true,
+        reviews,
+        mine: existing !== null,
+        mineHasContent: existing?.hasContent ?? false,
+        signedIn: user !== null,
+      },
+      { status: 200, headers: NO_STORE },
+    );
   } catch (e) {
     return failure(e);
   }
@@ -134,8 +151,13 @@ export async function POST(
     );
   }
 
+  // **로그인 경로는 브라우저가 보낸 `authorRef` 를 버립니다** (④ §5.8 r12 · `AD-20`).
+  // 클라이언트가 보낸 신원을 그대로 믿으면 아무나 남의 계정으로 기록을 남길 수 있습니다.
+  const user = await readCurrentUser();
+  const input = user ? { ...parsed.input, authorRef: user.authorRef } : parsed.input;
+
   try {
-    const outcome = await createReview(placeId, parsed.input);
+    const outcome = await createReview(placeId, input);
 
     if (outcome.kind === "not_found") {
       return NextResponse.json(
@@ -156,8 +178,10 @@ export async function POST(
       );
     }
 
+    // `filled` = 방문을 먼저 찍어 둔 행을 채운 경우(④ §5.3.1). 사용자에게는 "남겼다" 로
+    // 똑같이 보이면 되는 상황이라 응답 모양을 나누지 않고 사실만 한 칸 덧붙입니다.
     return NextResponse.json(
-      { ok: true, review: outcome.review },
+      { ok: true, review: outcome.review, filled: outcome.kind === "filled" },
       { status: 200, headers: { ...NO_STORE, ...limitHeaders(limit) } },
     );
   } catch (e) {

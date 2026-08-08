@@ -23,6 +23,7 @@ import Link from "next/link";
 
 import { DartSetup } from "@/components/home/DartSetup";
 import { DataSources } from "@/components/DataSources";
+import { readCurrentUser } from "@/lib/auth";
 import { isThemeKey } from "@/lib/theme";
 
 export const dynamic = "force-dynamic";
@@ -41,18 +42,32 @@ export default async function Home({
   const themeRaw = params.theme;
   const theme = isThemeKey(themeRaw) ? themeRaw : null;
 
+  // §14.5 — `👤` 는 로그인 전이면 `/login`, 로그인 후면 스탬프판(내 기록의 첫 화면)입니다.
+  // **로그인 여부를 이 표식 말고 다른 곳에서는 드러내지 않습니다** — 계정은 곁다리 기능이라
+  // 첫 화면이 그것을 계속 말할 이유가 없고, 로그아웃도 스탬프판 안에 둡니다(§14.5).
+  const user = await readCurrentUser();
+
   return (
     <main className="mx-auto min-h-screen w-full max-w-lg bg-[#0E1116] text-[#F2F4F7]">
-      {/* 상단 바 (§2.1 · §3.2-1) — ⓘ → S6 정보 (§3.4 전이표) */}
+      {/* 상단 바 (§2.1 · §3.2-1) — ⓘ → S6 정보 (§3.4 전이표) · 👤 → S7/S8 (§14.5) */}
       <header className="flex h-14 items-center justify-between px-5">
         <h1 className="text-lg font-bold">부산 Dartrip</h1>
-        <Link
-          href="/about"
-          aria-label="정보"
-          className="flex h-11 w-11 items-center justify-center rounded-full text-lg text-[#98A2B3]"
-        >
-          ⓘ
-        </Link>
+        <div className="flex items-center">
+          <Link
+            href={user ? "/stamps" : "/login"}
+            aria-label={user ? "내 스탬프" : "로그인"}
+            className="flex h-11 w-11 items-center justify-center rounded-full text-lg text-[#98A2B3]"
+          >
+            👤
+          </Link>
+          <Link
+            href="/about"
+            aria-label="정보"
+            className="flex h-11 w-11 items-center justify-center rounded-full text-lg text-[#98A2B3]"
+          >
+            ⓘ
+          </Link>
+        </div>
       </header>
 
       <DartSetup initialScope={scope} initialTheme={theme} />

@@ -266,6 +266,11 @@ export async function loadPlaceReviews(
     .from("reviews")
     .select("id,body,photo_path,created_at")
     .eq("place_id", placeId)
+    // r12 이후 이 표는 **방문 기록을 겸합니다**(`AD-21`). "다녀왔어요" 만 누른 행은 본문·사진이
+    // 둘 다 비어 있고, 목록에 내면 **빈 카드가 줄줄이 서는 자리**가 됩니다 — 보여 줄 내용이
+    // 없고, 남이 다녀갔다는 사실만 나열해도 목록이 무의미해집니다(④ §5.3.1).
+    // 스탬프·아카이빙은 반대로 두 종류를 구분하지 않고 전부 셉니다(`lib/visit.ts`).
+    .or("body.not.is.null,photo_path.not.is.null")
     .order("created_at", { ascending: false })
     .limit(options.limit ?? 10);
 

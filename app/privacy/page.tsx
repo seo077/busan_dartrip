@@ -1,0 +1,172 @@
+/**
+ * S6-2 — 개인정보 처리방침.
+ *
+ * 설계 정본: `화면구성도.md` §17(전체 — §17.2 담을 항목) · §8.1(S6 개인정보 블록)
+ *            `ARCHITECTURE.md` `AD-19`(수집 항목) · `AD-9`(위치 미수집) · `AD-20`
+ *            `API데이터설계.md` §5.7(보존 정책) · `D-46-4`·`D-46-10`
+ *
+ * 왜 별도 페이지인가 (§17.1)
+ * -------------------------
+ * r6 까지 개인정보 안내는 S6 안의 세 줄이었고 요지가 *"위치를 저장하지 않고, 회원가입이
+ * 없다"* 였습니다. **로그인이 생기면서 두 문장이 다 사실이 아니게 됩니다.** 처리방침은
+ * 수집 항목·이용 목적·보유 기간·파기 절차·이용자 권리·보호책임자를 각각 밝혀야 하는 문서라
+ * 정보 화면의 한 블록에 넣으면 그 화면이 처리방침에 잡아먹힙니다.
+ *
+ * ★ 제출 전에 반드시 바꿔야 하는 값이 하나 있습니다
+ * ------------------------------------------------
+ * **보호책임자 연락처**입니다. 지금 값은 임시이며 **실제로 수신 가능한 주소로 교체**해야
+ * 합니다(`D-46-10`). 추적 = `PROGRESS.md` §남은 작업 39번. 아래 `CONTACT` 상수 한 곳만
+ * 고치면 됩니다.
+ *
+ * 외부 의존이 없는 정적 문서입니다 (§17.3 — 상태가 "정상" 하나뿐).
+ */
+
+import Link from "next/link";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "개인정보 처리방침 — 부산 Dartrip",
+  description: "수집 항목은 아이디와 비밀번호 2건입니다. 위치 정보를 수집하지 않습니다.",
+};
+
+/** ★ 제출 전 교체 대상 (`D-46-10` · `PROGRESS.md` §남은 작업 39번) */
+const CONTACT = {
+  officer: "부산 Dartrip 운영팀",
+  email: "dartrip.busan@gmail.com",
+};
+
+/** 시행일 = 게시일 (§17.2 마지막 행) */
+const EFFECTIVE_DATE = "2026년 8월 8일";
+
+function Article({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <section className="border-t border-white/10 px-5 py-6">
+      <h2 className="mb-3 text-sm font-semibold text-[#98A2B3]">{title}</h2>
+      <div className="space-y-2 text-sm leading-relaxed break-keep text-[#F2F4F7]">{children}</div>
+    </section>
+  );
+}
+
+function Bullets({ items }: { items: string[] }) {
+  return (
+    <ul className="space-y-2">
+      {items.map((item) => (
+        <li key={item} className="flex gap-2">
+          <span aria-hidden className="text-[#98A2B3]">
+            ·
+          </span>
+          <span>{item}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+export default function PrivacyPage() {
+  return (
+    <main className="mx-auto min-h-screen w-full max-w-lg bg-[#0E1116] text-[#F2F4F7]">
+      <header className="sticky top-0 z-20 flex h-14 items-center gap-1 bg-[#0E1116]/85 px-2 backdrop-blur">
+        <Link
+          href="/about"
+          aria-label="뒤로"
+          className="flex h-11 w-11 items-center justify-center rounded-full text-xl text-[#F2F4F7]"
+        >
+          <span aria-hidden>←</span>
+        </Link>
+        <h1 className="text-base font-semibold">개인정보 처리방침</h1>
+      </header>
+
+      <section className="px-5 pt-2 pb-6">
+        <p className="text-sm leading-relaxed break-keep text-[#98A2B3]">
+          부산 Dartrip(이하 &lsquo;서비스&rsquo;)은 이용자의 개인정보를 최소한으로만 받습니다.
+          받는 것은 <strong className="text-[#F2F4F7]">아이디와 비밀번호 2건</strong>이며, 그
+          밖의 항목은 받지 않습니다.
+        </p>
+      </section>
+
+      <Article title="1. 수집하는 항목">
+        <Bullets
+          items={[
+            "아이디 — 로그인에 쓰는 이름입니다.",
+            "비밀번호 — 암호화해 저장하며, 원래 값을 저장하거나 열람할 수 없습니다.",
+          ]}
+        />
+        <p className="mt-3 text-xs leading-relaxed break-keep text-[#98A2B3]">
+          이메일·이름·연락처·프로필 사진을 받지 않습니다. 그래서 비밀번호를 잊으면 재설정
+          메일을 보낼 곳이 없고, 되찾을 수 없습니다. 가입 화면에서 이 사실을 먼저 알립니다.
+        </p>
+      </Article>
+
+      <Article title="2. 수집하지 않는 것">
+        <Bullets
+          items={[
+            "위치 정보 — 브라우저에 위치 권한을 요청하는 자리 자체가 없습니다. 다트의 기준점은 구·군이라 현재 위치가 필요하지 않습니다.",
+            "기기 식별 정보 — 로그인하지 않은 상태의 등록·후기에 붙는 값은 이 기기에서 만든 임의의 값이며, 기기 자체를 알아내는 값이 아닙니다.",
+          ]}
+        />
+      </Article>
+
+      <Article title="3. 이용 목적">
+        <Bullets
+          items={[
+            "로그인 — 이 계정이 본인의 것임을 확인합니다.",
+            "내 방문 기록의 소유자 구분 — 스탬프판과 여행 기록이 누구의 것인지 가릅니다.",
+          ]}
+        />
+        <p className="mt-3 text-xs leading-relaxed break-keep text-[#98A2B3]">
+          광고·마케팅·프로파일링에 쓰지 않습니다. 이용자별 행동을 분석하는 도구를 붙이지
+          않았습니다.
+        </p>
+      </Article>
+
+      <Article title="4. 보유 및 이용 기간">
+        <Bullets
+          items={[
+            "계정 정보 — 계정을 삭제할 때까지 보관합니다.",
+            "방문 기록과 후기 — 기간 만료로 자동 삭제되지 않습니다. 이용자가 남긴 기록이기 때문입니다.",
+          ]}
+        />
+      </Article>
+
+      <Article title="5. 파기 절차">
+        <p>
+          아래 연락처로 계정 삭제를 요청하시면 본인 확인 후 계정과 그 계정에 딸린 방문 기록을
+          지웁니다. 지운 정보는 되살릴 수 없습니다.
+        </p>
+      </Article>
+
+      <Article title="6. 이용자의 권리">
+        <Bullets
+          items={[
+            "열람 — 내 방문 기록은 로그인 후 '내 여행 기록' 화면에서 언제든 볼 수 있습니다.",
+            "정정·삭제 — 아래 연락처로 요청하실 수 있습니다.",
+            "처리 정지 — 로그아웃하면 그 시점부터 새 기록이 쌓이지 않습니다.",
+          ]}
+        />
+      </Article>
+
+      <Article title="7. 제3자 제공 및 처리 위탁">
+        <p>개인정보를 제3자에게 판매하거나 제공하지 않습니다. 서비스 운영에 아래를 씁니다.</p>
+        <Bullets
+          items={[
+            "Supabase — 데이터 보관",
+            "Vercel — 서비스 배포",
+            "카카오 — 지도 표시",
+          ]}
+        />
+        <p className="mt-3 text-xs leading-relaxed break-keep text-[#98A2B3]">
+          지도는 이용자의 브라우저가 카카오를 직접 부르는 방식이라, 지도에서 움직인 좌표가 저희
+          서버에 닿지 않습니다.
+        </p>
+      </Article>
+
+      <Article title="8. 개인정보 보호책임자">
+        <Bullets items={[`책임자 — ${CONTACT.officer}`, `연락처 — ${CONTACT.email}`]} />
+      </Article>
+
+      <Article title="9. 시행일">
+        <p>본 방침은 {EFFECTIVE_DATE}부터 적용합니다.</p>
+      </Article>
+    </main>
+  );
+}

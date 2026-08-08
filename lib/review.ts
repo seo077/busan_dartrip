@@ -100,13 +100,27 @@ function isDuplicateInsert(error: { code?: string; message?: string; details?: s
  * 화면(작성 버튼 자리)과 적재(POST)가 같은 판단을 쓰도록 한 곳에 둡니다.
  */
 export async function hasDeviceReview(placeId: string, authorRef: string): Promise<boolean> {
-  if (!isIdentifiable(authorRef)) return false;
+  return (await findExistingReview(placeId, authorRef)) !== null;
+}
+
+/**
+ * 이 작성자의 기존 행 — **있는지와 함께 "내용이 들어 있는지" 를 봅니다** (r12 · `AD-21`).
+ *
+ * 이 표가 방문 기록을 겸하면서 한 행이 두 가지를 뜻하게 됐습니다 — 본문·사진이 둘 다 비면
+ * **"다녀왔어요만"**, 하나라도 있으면 후기입니다(④ §5.3.1). 화면이 시트를 열지 말지와
+ * 적재가 새 행을 만들지 기존 행을 채울지가 **이 구분 하나에 걸립니다.**
+ */
+export async function findExistingReview(
+  placeId: string,
+  authorRef: string,
+): Promise<{ id: string; hasContent: boolean } | null> {
+  if (!isIdentifiable(authorRef)) return null;
 
   requireConfig();
 
   const { data, error } = await getServiceClient()
     .from("reviews")
-    .select("id")
+    .select("id,body,photo_path")
     .eq("place_id", placeId)
     .eq("author_ref", authorRef)
     .limit(1)
@@ -115,8 +129,12 @@ export async function hasDeviceReview(placeId: string, authorRef: string): Promi
   if (error) {
     throw new ReviewError("db_error", "이전 기록을 확인하지 못했습니다.", error.message);
   }
+  if (!data) return null;
 
-  return data !== null;
+  return {
+    id: data.id as string,
+    hasContent: (data.body as string | null) !== null || (data.photo_path as string | null) !== null,
+  };
 }
 
 export class ReviewError extends Error {
@@ -200,6 +218,11 @@ export interface CreatedReview {
 
 export type CreateReviewOutcome =
   | { kind: "created"; review: CreatedReview }
+  /**
+   * **"다녀왔어요" 를 먼저 누른 뒤 후기를 쓴 경우** (r12 · ④ §5.3.1).
+   * 새 행을 만들지 않고 그 행의 본문·사진을 채웁니다. 방문 시각은 처음 누른 때로 유지됩니다.
+   */
+  | { kind: "filled"; review: CreatedReview }
   | { kind: "not_found" }
   | { kind: "duplicate" };
 
@@ -242,7 +265,41 @@ export async function createReview(
   }
   if (!place) return { kind: "not_found" };
 
-  if (await hasDeviceReview(placeId, input.authorRef)) return { kind: "duplicate" };
+  const existing = await findExistingReview(placeId, input.authorRef);
+  if (existing) {
+    // 이미 내용이 있으면 종전대로 한 번뿐입니다.
+    if (existing.hasContent) return { kind: "duplicate" };
+
+    // 비어 있는 행 = "다녀왔어요만". 새로 넣을 내용도 없으면 바뀔 것이 없습니다.
+    if (input.body === null && input.photoUrl === null) return { kind: "duplicate" };
+
+    // **행을 채웁니다.** 유니크 인덱스가 두 번째 행을 막으므로 이 경로 말고는 선택지가 없고,
+    // 방문 시각(`created_at`)은 처음 누른 때로 그대로 둡니다(④ §5.3.1).
+    const filled = await db
+      .from("reviews")
+      .update({ body: input.body, photo_path: input.photoUrl })
+      .eq("id", existing.id)
+      .select("id,body,photo_path,created_at")
+      .single();
+
+    if (filled.error || !filled.data) {
+      throw new ReviewError(
+        "db_error",
+        "저장하지 못했어요.",
+        filled.error?.message ?? "적재 결과가 비어 있습니다.",
+      );
+    }
+
+    return {
+      kind: "filled",
+      review: {
+        id: filled.data.id as string,
+        body: (filled.data.body as string | null) ?? null,
+        photoPath: (filled.data.photo_path as string | null) ?? null,
+        createdAt: filled.data.created_at as string,
+      },
+    };
+  }
 
   const { data, error } = await db
     .from("reviews")

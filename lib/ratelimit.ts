@@ -19,6 +19,12 @@
  * | `GET /api/places/:id/enrich` | 관광공사 일 한도 — 하루 뒤 회복 | 상한 (본 파일) + 7일 캐시 |
  * | `GET /api/tour` | 관광공사 일 한도 — 하루 뒤 회복 | 응답 캐시 |
  * | `GET /api/geo/*` | 카카오 일 한도 — 하루 뒤 회복 | 응답 캐시 |
+ * | `POST /api/auth/signup` | `auth.users` 행 — **되돌아오지 않음**(④ §5.7) | 상한 (본 파일, 주소) |
+ * | `POST /api/auth/login` | 자원이 아니라 **성공 확률** | 상한 (본 파일, 주소 + 아이디 두 축) |
+ *
+ * 인증 두 갈래는 r12 설계(④ §11.4 `DF-5` · `R-18`)가 로그인 도입과 함께 정한 자리입니다.
+ * **다트처럼 넉넉하게 잡지 않습니다** — 로그인이 잠깐 막혀도 다트·결과·상세·후기·장소등록은
+ * 그대로 동작하므로(`D-46-3`) `SC-7` 이 걸리지 않고, 그래서 조일 수 있습니다.
  *
  * `geo` 2종에 상한을 걸지 않은 것은 봐주는 것이 아니라 **그 경로가 DB 를 전혀 안 쓰기
  * 때문**입니다. 상한을 걸면 카카오 호출을 아끼려고 DB 쓰기를 새로 만드는 셈이 되어, 지키려던
@@ -57,7 +63,15 @@ import "server-only";
 
 import { getServiceClient, supabaseStatus } from "@/lib/supabase";
 
-export type LimitBucket = "upload" | "place_submit" | "enrich" | "review" | "throw";
+export type LimitBucket =
+  | "upload"
+  | "place_submit"
+  | "enrich"
+  | "review"
+  | "throw"
+  | "auth_signup"
+  | "auth_login"
+  | "auth_login_id";
 
 interface Window {
   seconds: number;
@@ -108,6 +122,23 @@ const RULES: Record<LimitBucket, Window[]> = {
   throw: [
     { seconds: HOUR, limit: 300, label: "시간당" },
     { seconds: DAY, limit: 1_500, label: "하루" },
+  ],
+  // ── 인증 경로 (④ §11.4 `DF-5` · `R-18`) ──────────────────────────────────
+  // 가입은 `auth.users` 행을 만듭니다 — 만료 대상이 아니라 **회복되지 않는 자원**이고,
+  // 그래서 `place_submit` 보다 오히려 조입니다(정상 이용자가 한 시간에 계정을 다섯 개
+  // 만들 이유가 없습니다).
+  auth_signup: [
+    { seconds: HOUR, limit: 5, label: "시간당" },
+    { seconds: DAY, limit: 20, label: "하루" },
+  ],
+  // 로그인은 행을 만들지 않습니다 — 막는 대상이 자원이 아니라 **성공 확률**입니다.
+  auth_login: [
+    { seconds: HOUR, limit: 20, label: "시간당" },
+    { seconds: DAY, limit: 100, label: "하루" },
+  ],
+  auth_login_id: [
+    { seconds: HOUR, limit: 10, label: "시간당" },
+    { seconds: DAY, limit: 50, label: "하루" },
   ],
 };
 
@@ -166,7 +197,18 @@ export function clientKey(request: Request): string {
  * 짧은 창에서 이미 걸렸으면 긴 창은 세지 않습니다 — 막힌 요청까지 일 누적에 넣으면
  * 한 번 걸린 사람이 그날 내내 못 쓰게 됩니다.
  */
-export async function consume(bucket: LimitBucket, request: Request): Promise<LimitVerdict> {
+export async function consume(
+  bucket: LimitBucket,
+  request: Request,
+  /**
+   * 셀 대상을 주소가 아닌 다른 축으로 바꿉니다 (④ §11.4 — 로그인의 아이디 축).
+   *
+   * 주소만 세면 **한 아이디를 여러 주소에서 두드리는 경로**가 남고, 아이디만 세면
+   * **한 주소가 여러 아이디를 훑는 경로**가 남습니다. 둘 다 실제로 쓰이는 모양이라
+   * 두 축을 각각 한 번씩 부릅니다. 표도 함수도 그대로이고 **열쇠 문자열만 다릅니다.**
+   */
+  subjectOverride?: string,
+): Promise<LimitVerdict> {
   const status = supabaseStatus();
   if (!status.hasUrl || !status.hasServiceKey) return UNAVAILABLE;
 
@@ -177,7 +219,7 @@ export async function consume(bucket: LimitBucket, request: Request): Promise<Li
     return UNAVAILABLE;
   }
 
-  const subject = clientKey(request);
+  const subject = subjectOverride ?? clientKey(request);
 
   for (const window of RULES[bucket]) {
     const { data, error } = await db.rpc("consume_rate_limit", {
