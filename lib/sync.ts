@@ -320,6 +320,20 @@ async function startRun(db: SupabaseClient): Promise<number> {
   return (data as { id: number }).id;
 }
 
+/**
+ * 마무리 기록에 `cleanup` 열을 못 쓰는 상태인가.
+ *
+ * 마이그레이션(`20260808090000_sync_runs_cleanup.sql`) 전에는 그 열이 없어 적재가 통째로
+ * 실패합니다. **그러면 정리 건수 하나 때문에 `status`·`cursor` 까지 안 남아 DF-1 이 깨집니다** —
+ * 있으면 좋은 값이 없으면 안 되는 값을 무너뜨리는 자리라, 이 경우만 가려내 한 번 더 씁니다.
+ */
+function isMissingColumn(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false;
+  // PostgREST 는 스키마 캐시에 없는 열을 PGRST204 로, Postgres 는 42703(undefined_column)으로 답합니다.
+  if (error.code === "PGRST204" || error.code === "42703") return true;
+  return (error.message ?? "").includes("cleanup");
+}
+
 async function finishRun(
   db: SupabaseClient,
   id: number | null,
@@ -330,21 +344,30 @@ async function finishRun(
     skipped?: number;
     cursor?: string | null;
     note?: string | null;
+    /** 이번 실행이 지운 건수 (`X-47`). **정리가 안 돌았으면 `null`** — 0건 삭제와 구분합니다 */
+    cleanup?: CleanupCounts | null;
   },
 ): Promise<void> {
   if (id === null) return;
-  await db
+
+  const base = {
+    status: patch.status,
+    fetched: patch.fetched ?? 0,
+    upserted: patch.upserted ?? 0,
+    skipped: patch.skipped ?? 0,
+    cursor: patch.cursor ?? null,
+    error_message: patch.note ?? null,
+    finished_at: new Date().toISOString(),
+  };
+
+  const { error } = await db
     .from("sync_runs")
-    .update({
-      status: patch.status,
-      fetched: patch.fetched ?? 0,
-      upserted: patch.upserted ?? 0,
-      skipped: patch.skipped ?? 0,
-      cursor: patch.cursor ?? null,
-      error_message: patch.note ?? null,
-      finished_at: new Date().toISOString(),
-    })
+    .update({ ...base, cleanup: patch.cleanup ?? null })
     .eq("id", id);
+
+  if (error && isMissingColumn(error)) {
+    await db.from("sync_runs").update(base).eq("id", id);
+  }
 }
 
 // ── ①-b 실패 알림 (§6.5 · DF-2) ──────────────────────────────────────────────
@@ -516,6 +539,11 @@ async function upsertPlaces(db: SupabaseClient, rows: PlaceUpsertRow[]): Promise
 }
 
 // ── ④ 만료 정리 (§5.7) ───────────────────────────────────────────────────────
+//
+// 지운 건수는 `sync_runs.cleanup` 에 남습니다 (`X-47` · `20260808090000_sync_runs_cleanup.sql`).
+// 전에는 응답 본문에만 있었고 그 응답을 받는 것은 크론 스케줄러뿐이라 **아무도 읽지 않는
+// 값**이었습니다. `throws` 첫 만료가 2026-09-03 이고 제출 마감이 09-21 이라, 그날 처음 도는
+// 삭제가 잘못 동작하면 기록이 없는 채로 심사 기간에 드러납니다.
 
 function daysAgoIso(days: number): string {
   return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
@@ -680,6 +708,8 @@ export async function runIncrementalSync(options: SyncOptions = {}): Promise<Syn
     calls: 0,
   };
   let cleanupCounts: CleanupCounts = { throws: 0, enrichment: 0, syncRuns: 0, rateLimits: 0 };
+  /** 정리가 실제로 돌았는가 (`X-47`). 0건 삭제와 "거기까지 못 감" 을 구분하는 값입니다 */
+  let cleanupRan = false;
   let audit: AuditResult | null = null;
   const done: string[] = [];
   let pending = false;
@@ -786,6 +816,7 @@ export async function runIncrementalSync(options: SyncOptions = {}): Promise<Syn
     if (!options.dryRun) {
       // ④ 만료 정리 (§5.7)
       cleanupCounts = await cleanup(db);
+      cleanupRan = true;
 
       // ⑥ 주 1회(월요일) 집계표 대조 — 전수 집계라 매일 돌리지 않습니다
       const isMonday = kstDayOfWeek(startedAt) === 1;
@@ -810,6 +841,7 @@ export async function runIncrementalSync(options: SyncOptions = {}): Promise<Syn
         skipped: counts.skipped,
         cursor,
         note,
+        cleanup: cleanupRan ? cleanupCounts : null,
       });
     }
 
@@ -846,6 +878,8 @@ export async function runIncrementalSync(options: SyncOptions = {}): Promise<Syn
       skipped: counts.skipped,
       cursor: null,
       note: errorNote,
+      // 실패 경로에서도 정리가 이미 돌았을 수 있습니다 — 돌았으면 그 결과를 남깁니다.
+      cleanup: cleanupRan ? cleanupCounts : null,
     });
 
     const finishedAt = new Date();
