@@ -44,7 +44,13 @@ export function clampPull(dx: number, dy: number, max = MAX_PULL_PX): Point {
   return { x: dx * ratio, y: dy * ratio };
 }
 
-/** 당긴 길이 → 0~1 의 세기. **길이만 봅니다(방향은 보지 않습니다).** */
+/**
+ * 당긴 길이 → 0~1 의 세기. **길이만 봅니다(방향은 보지 않습니다).**
+ *
+ * 위로 당기든 아래로 당기든 결과가 같습니다. 좌우가 새총식으로 바뀐 `D-60` 에서도
+ * **상하에는 그 은유를 입히지 않았습니다** — *"먼저 좌우만 하고 써보고 정한다"*(`D-60-3`).
+ * 아래로 당길 때만 발사되게 하는 안은 **보류이며 폐기가 아닙니다.**
+ */
 export function pullPower(pull: Point, max = MAX_PULL_PX): number {
   const length = Math.hypot(pull.x, pull.y);
   return Math.min(1, Math.max(0, length / max));
@@ -72,9 +78,16 @@ export function trailCount(power: number): number {
   return 3;
 }
 
-/** 잡은 손 방향으로의 기울기(도) — 손에 쥔 느낌만 만듭니다(겨눈 곳은 `lib/aim.ts` 가 정합니다). */
+/**
+ * 잡은 손의 **반대쪽**으로 기우는 각도(도) — 손에 쥔 느낌만 만듭니다
+ * (겨눈 곳은 `lib/aim.ts` 가 정합니다).
+ *
+ * **`D-60-2` 에서 부호가 뒤집혔습니다.** 앞 판본은 당긴 쪽으로 기울었는데, 좌우 방향만
+ * 뒤집고 이것을 두면 **다트 머리는 오른쪽인데 몸은 왼쪽으로 날아갑니다.** 취향이 아니라
+ * 정합성입니다 — 새총에 물린 발사체는 늘 날아갈 쪽을 봅니다.
+ */
 export function dartTiltDeg(pull: Point): number {
-  const raw = pull.x * 0.16;
+  const raw = -pull.x * 0.16;
   return Math.max(-20, Math.min(20, raw));
 }
 
