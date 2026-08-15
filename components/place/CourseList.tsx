@@ -30,21 +30,21 @@ export function CourseList({ courses }: { courses: CourseView[] }) {
   if (courses.length === 0) return null;
 
   return (
-    <section className="border-t border-white/10 px-5 py-6">
-      <h2 className="mb-3 text-sm font-semibold text-[#98A2B3]">주변 도보 코스</h2>
+    <section className="border-t border-line px-5 py-6">
+      <h2 className="mb-3 text-sm font-semibold text-ink-muted">주변 도보 코스</h2>
 
       <ul className="space-y-2">
         {courses.map((course) => (
           <li
             key={course.id}
-            className="flex items-center gap-3 rounded-2xl border border-white/10 bg-[#171B22] p-4"
+            className="flex items-center gap-3 rounded-2xl border border-line bg-surface p-4"
           >
             <span aria-hidden className="text-lg">
               🥾
             </span>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium text-[#F2F4F7]">{course.name}</p>
-              <p className="mt-0.5 truncate text-xs text-[#98A2B3]">{subtitle(course)}</p>
+              <p className="truncate text-sm font-medium text-ink">{course.name}</p>
+              <p className="mt-0.5 truncate text-xs text-ink-muted">{subtitle(course)}</p>
             </div>
           </li>
         ))}

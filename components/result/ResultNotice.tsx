@@ -26,11 +26,11 @@ export function ResultNotice({
       <p className="mb-5 text-4xl" aria-hidden>
         🎯
       </p>
-      <h1 className="text-xl font-bold break-keep text-[#F2F4F7]">{title}</h1>
-      <p className="mt-3 text-sm leading-relaxed break-keep text-[#98A2B3]">{body}</p>
+      <h1 className="text-xl font-bold break-keep text-ink">{title}</h1>
+      <p className="mt-3 text-sm leading-relaxed break-keep text-ink-muted">{body}</p>
       <Link
         href={actionHref}
-        className="mt-8 flex min-h-12 items-center justify-center rounded-2xl bg-[#FF4D4D] px-8 text-sm font-semibold text-white"
+        className="mt-8 flex min-h-12 items-center justify-center rounded-2xl bg-brand-deep px-8 text-sm font-semibold text-white"
       >
         {actionLabel}
       </Link>

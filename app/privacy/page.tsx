@@ -71,9 +71,9 @@ const DEFAULT_RETURN = RETURN_TO.about;
 
 function Article({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="border-t border-white/10 px-5 py-6">
-      <h2 className="mb-3 text-sm font-semibold text-[#98A2B3]">{title}</h2>
-      <div className="space-y-2 text-sm leading-relaxed break-keep text-[#F2F4F7]">{children}</div>
+    <section className="border-t border-line px-5 py-6">
+      <h2 className="mb-3 text-sm font-semibold text-ink-muted">{title}</h2>
+      <div className="space-y-2 text-sm leading-relaxed break-keep text-ink">{children}</div>
     </section>
   );
 }
@@ -83,7 +83,7 @@ function Bullets({ items }: { items: string[] }) {
     <ul className="space-y-2">
       {items.map((item) => (
         <li key={item} className="flex gap-2">
-          <span aria-hidden className="text-[#98A2B3]">
+          <span aria-hidden className="text-ink-muted">
             ·
           </span>
           <span>{item}</span>
@@ -103,12 +103,12 @@ export default async function PrivacyPage({
   const back = (typeof raw === "string" ? RETURN_TO[raw] : undefined) ?? DEFAULT_RETURN;
 
   return (
-    <main className="mx-auto min-h-screen w-full max-w-lg bg-[#0E1116] text-[#F2F4F7]">
-      <header className="sticky top-0 z-20 flex h-14 items-center gap-1 bg-[#0E1116]/85 px-2 backdrop-blur">
+    <main className="mx-auto min-h-screen w-full max-w-lg bg-canvas text-ink">
+      <header className="sticky top-0 z-20 flex h-14 items-center gap-1 bg-canvas/85 px-2 backdrop-blur">
         <Link
           href={back.href}
           aria-label={`뒤로 — ${back.label} 화면으로`}
-          className="flex h-11 w-11 items-center justify-center rounded-full text-xl text-[#F2F4F7]"
+          className="flex h-11 w-11 items-center justify-center rounded-full text-xl text-ink"
         >
           <span aria-hidden>←</span>
         </Link>
@@ -116,12 +116,12 @@ export default async function PrivacyPage({
       </header>
 
       <section className="px-5 pt-2 pb-6">
-        <p className="text-sm leading-relaxed break-keep text-[#98A2B3]">
+        <p className="text-sm leading-relaxed break-keep text-ink-muted">
           부산 Dartrip(이하 &lsquo;서비스&rsquo;)은 이용자의 개인정보를 최소한으로만 받습니다.
           가입할 때 받는 것은{" "}
-          <strong className="text-[#F2F4F7]">아이디와 비밀번호 2건</strong>입니다. 그 밖에,
+          <strong className="text-ink">아이디와 비밀번호 2건</strong>입니다. 그 밖에,
           서비스를 지키기 위해{" "}
-          <strong className="text-[#F2F4F7]">접속 주소를 잠깐 기록했다가 지웁니다</strong>{" "}
+          <strong className="text-ink">접속 주소를 잠깐 기록했다가 지웁니다</strong>{" "}
           (아래 2항).
         </p>
       </section>
@@ -133,7 +133,7 @@ export default async function PrivacyPage({
             "비밀번호 — 암호화해 저장하며, 원래 값을 저장하거나 열람할 수 없습니다.",
           ]}
         />
-        <p className="mt-3 text-xs leading-relaxed break-keep text-[#98A2B3]">
+        <p className="mt-3 text-xs leading-relaxed break-keep text-ink-muted">
           이메일·이름·연락처·프로필 사진을 받지 않습니다. 그래서 비밀번호를 잊으면 재설정
           메일을 보낼 곳이 없고, 되찾을 수 없습니다. 가입 화면에서 이 사실을 먼저 알립니다.
         </p>
@@ -146,7 +146,7 @@ export default async function PrivacyPage({
             "로그인에 시도한 아이디 — 한 아이디에 비밀번호를 반복해 넣어 보는 시도를 막기 위해 같은 방식으로 셉니다. 가입되지 않은 아이디도 시도가 있으면 세어집니다.",
           ]}
         />
-        <p className="mt-3 text-xs leading-relaxed break-keep text-[#98A2B3]">
+        <p className="mt-3 text-xs leading-relaxed break-keep text-ink-muted">
           이 두 값은 남용을 막는 계수기에만 쓰고, <strong>약 2일이 지나면 정기적으로 지웁니다.</strong>{" "}
           계정 정보나 방문 기록과 연결하지 않고, 광고·분석·프로파일링에도 쓰지 않습니다.
           로그인하지 않아도 서비스를 쓰는 동안에는 이 기록이 남습니다.
@@ -170,7 +170,7 @@ export default async function PrivacyPage({
             "서비스 보호 — 위 2항의 기록으로 짧은 시간에 몰리는 요청을 막습니다.",
           ]}
         />
-        <p className="mt-3 text-xs leading-relaxed break-keep text-[#98A2B3]">
+        <p className="mt-3 text-xs leading-relaxed break-keep text-ink-muted">
           광고·마케팅·프로파일링에 쓰지 않습니다. 이용자별 행동을 분석하는 도구를 붙이지
           않았습니다.
         </p>
@@ -191,7 +191,7 @@ export default async function PrivacyPage({
           아래 연락처로 계정 삭제를 요청하시면 본인 확인 후 계정과 그 계정에 딸린 방문 기록을
           지웁니다. 지운 정보는 되살릴 수 없습니다.
         </p>
-        <p className="mt-3 text-xs leading-relaxed break-keep text-[#98A2B3]">
+        <p className="mt-3 text-xs leading-relaxed break-keep text-ink-muted">
           위 2항의 자동 기록은 요청을 기다리지 않고 정기적으로 지워집니다.
         </p>
       </Article>
@@ -215,7 +215,7 @@ export default async function PrivacyPage({
             "카카오 — 지도 표시",
           ]}
         />
-        <p className="mt-3 text-xs leading-relaxed break-keep text-[#98A2B3]">
+        <p className="mt-3 text-xs leading-relaxed break-keep text-ink-muted">
           지도는 이용자의 브라우저가 카카오를 직접 부르는 방식이라, 지도에서 움직인 좌표가 저희
           서버에 닿지 않습니다.
         </p>

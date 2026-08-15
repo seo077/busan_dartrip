@@ -24,9 +24,9 @@ function Row({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex gap-4 border-b border-white/5 py-3 last:border-0">
-      <span className="w-16 shrink-0 text-sm text-[#98A2B3]">{label}</span>
-      <div className="min-w-0 flex-1 text-sm break-keep text-[#F2F4F7]">{children}</div>
+    <div className="flex gap-4 border-b border-line py-3 last:border-0">
+      <span className="w-16 shrink-0 text-sm text-ink-muted">{label}</span>
+      <div className="min-w-0 flex-1 text-sm break-keep text-ink">{children}</div>
     </div>
   );
 }
@@ -66,8 +66,8 @@ export function PlaceInfoList({
   if (!address && !tel && !homepage) return null;
 
   return (
-    <section className="border-t border-white/10 px-5 py-6">
-      <h2 className="mb-1 text-sm font-semibold text-[#98A2B3]">정보</h2>
+    <section className="border-t border-line px-5 py-6">
+      <h2 className="mb-1 text-sm font-semibold text-ink-muted">정보</h2>
 
       <div>
         {address ? (
@@ -108,7 +108,7 @@ export function PlaceInfoList({
         {notice === "copied" ? "주소를 복사했습니다" : ""}
       </span>
       {notice ? (
-        <p className="mt-2 text-xs text-[#98A2B3]">
+        <p className="mt-2 text-xs text-ink-muted">
           {notice === "copied" ? "주소를 복사했어요" : "주소를 직접 선택해 복사해 주세요"}
         </p>
       ) : null}

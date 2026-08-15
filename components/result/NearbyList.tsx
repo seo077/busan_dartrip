@@ -78,15 +78,15 @@ export function NearbyList({
   if (items.length === 0) {
     return (
       <section id="nearby" className="scroll-mt-4 px-5 py-10">
-        <h2 className="text-lg font-bold text-[#F2F4F7]">이 근처</h2>
-        <div className="mt-4 rounded-2xl border border-white/10 bg-[#171B22] p-6 text-center">
-          <p className="text-sm leading-relaxed break-keep text-[#F2F4F7]">
+        <h2 className="text-lg font-bold text-ink">이 근처</h2>
+        <div className="mt-4 rounded-2xl border border-line bg-surface p-6 text-center">
+          <p className="text-sm leading-relaxed break-keep text-ink">
             주변 3km 안에는 다른 장소가 없어요.
             <br />이 곳만의 시간을 보내보세요
           </p>
           <Link
             href={rethrowHref}
-            className="mt-5 inline-flex min-h-11 items-center justify-center rounded-2xl border border-white/20 px-6 text-sm text-[#F2F4F7]"
+            className="mt-5 inline-flex min-h-11 items-center justify-center rounded-2xl border border-ink/20 px-6 text-sm text-ink"
           >
             다시 던지기
           </Link>
@@ -97,9 +97,9 @@ export function NearbyList({
 
   return (
     <section id="nearby" className="scroll-mt-4 px-5 py-10">
-      <h2 className="text-lg font-bold text-[#F2F4F7]">이 근처</h2>
+      <h2 className="text-lg font-bold text-ink">이 근처</h2>
       {/* 정렬 기준을 문장으로 (§5.2 · §5.3 주석) — 순위가 아니라 거리라는 사실 */}
-      <p className="mt-1 text-sm break-keep text-[#98A2B3]">
+      <p className="mt-1 text-sm break-keep text-ink-muted">
         {originName}에서 가까운 순으로 보여드려요
       </p>
 
@@ -109,12 +109,12 @@ export function NearbyList({
             {/* 근처 항목 탭 → S4 (§5.5) */}
             <Link
               href={`/place/${item.id}`}
-              className="flex items-center gap-3 rounded-2xl border border-white/10 bg-[#171B22] p-3"
+              className="flex items-center gap-3 rounded-2xl border border-line bg-surface p-3"
             >
               <Thumb item={item} />
               <div className="min-w-0 flex-1">
                 <div className="flex items-start justify-between gap-2">
-                  <p className="truncate font-medium text-[#F2F4F7]">{item.name}</p>
+                  <p className="truncate font-medium text-ink">{item.name}</p>
                   <span className="shrink-0 text-sm" aria-hidden>
                     {item.isGoodRestaurant ? "🏅" : ""}
                     {item.isHiddenGem ? "✨" : ""}
@@ -126,7 +126,7 @@ export function NearbyList({
                     {item.isHiddenGem ? "숨은 곳" : ""}
                   </span>
                 ) : null}
-                <p className="mt-1 text-sm text-[#98A2B3]">
+                <p className="mt-1 text-sm text-ink-muted">
                   <span aria-hidden>{themeIcon(item.theme)}</span> {themeLabel(item.theme)} ·{" "}
                   {formatDistance(item.distanceM)}
                 </p>
@@ -141,7 +141,7 @@ export function NearbyList({
         <button
           type="button"
           onClick={() => setExpanded(true)}
-          className="mt-3 min-h-12 w-full rounded-2xl border border-white/15 text-sm text-[#F2F4F7]"
+          className="mt-3 min-h-12 w-full rounded-2xl border border-line text-sm text-ink"
         >
           더 보기 ({items.length}곳 중 {INITIAL_COUNT})
         </button>

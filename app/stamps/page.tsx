@@ -26,6 +26,7 @@ import type { Metadata } from "next";
 
 import { DataSources } from "@/components/DataSources";
 import { LogoutMenu } from "@/components/stamps/LogoutMenu";
+import { themeColor, themeIcon } from "@/lib/format";
 import { readCurrentUser } from "@/lib/auth";
 import { STAMP_TOTAL, loadStampBoard, pickEmptySigungu, type StampBoard } from "@/lib/visit";
 
@@ -38,12 +39,12 @@ export const metadata: Metadata = {
 
 function Header() {
   return (
-    <header className="sticky top-0 z-20 flex h-14 items-center justify-between bg-[#0E1116]/85 px-2 backdrop-blur">
+    <header className="sticky top-0 z-20 flex h-14 items-center justify-between bg-canvas/85 px-2 backdrop-blur">
       <div className="flex items-center gap-1">
         <Link
           href="/"
           aria-label="뒤로"
-          className="flex h-11 w-11 items-center justify-center rounded-full text-xl text-[#F2F4F7]"
+          className="flex h-11 w-11 items-center justify-center rounded-full text-xl text-ink"
         >
           <span aria-hidden>←</span>
         </Link>
@@ -61,22 +62,30 @@ function Grid({ board }: { board: StampBoard }) {
       {board.cells.map((cell) => (
         <li key={cell.code}>
           {cell.filled ? (
-            /* 채운 칸을 탭하면 그 구·군으로 걸러진 아카이빙이 열립니다 (§15.5) */
+            /*
+              채운 칸을 탭하면 그 구·군으로 걸러진 아카이빙이 열립니다 (§15.5).
+              칸 색 = **그 방문의 테마 색** (`D-61-1`). 테마 버튼·결과 카드와 같은 배정이라
+              세 화면이 같은 말을 합니다. 표식도 테마 아이콘으로 두어 색과 뜻이 맞습니다.
+            */
             <Link
               href={`/archive?gu=${encodeURIComponent(cell.code)}`}
-              className="flex min-h-20 flex-col items-center justify-center gap-1 rounded-2xl border border-[#FF4D4D]/50 bg-[#FF4D4D]/10 px-1 py-2 text-center"
+              className="flex min-h-20 flex-col items-center justify-center gap-1 rounded-2xl border px-1 py-2 text-center"
+              style={{
+                borderColor: themeColor(cell.theme),
+                backgroundColor: `color-mix(in srgb, ${themeColor(cell.theme)} 20%, transparent)`,
+              }}
             >
               <span aria-hidden className="text-lg leading-none">
-                🏅
+                {cell.theme ? themeIcon(cell.theme) : "🏅"}
               </span>
-              <span className="text-[11px] leading-tight break-keep text-[#F2F4F7]">
+              <span className="text-[11px] leading-tight break-keep text-ink">
                 {cell.name}
               </span>
             </Link>
           ) : (
             /* 빈 칸은 **회색으로 죽이지 않습니다** — 아직 갈 곳이지 못 간 곳이 아닙니다 (§15.3-4) */
-            <div className="flex min-h-20 flex-col items-center justify-center gap-1 rounded-2xl border border-white/10 bg-[#171B22] px-1 py-2 text-center">
-              <span className="text-[11px] leading-tight break-keep text-[#98A2B3]">
+            <div className="flex min-h-20 flex-col items-center justify-center gap-1 rounded-2xl border border-line bg-surface px-1 py-2 text-center">
+              <span className="text-[11px] leading-tight break-keep text-ink-muted">
                 {cell.name}
               </span>
             </div>
@@ -102,13 +111,13 @@ export default async function StampsPage() {
   // §15.4 "오류" — **로그아웃시키지 않습니다.**
   if (!board) {
     return (
-      <main className="mx-auto min-h-screen w-full max-w-lg bg-[#0E1116] text-[#F2F4F7]">
+      <main className="mx-auto min-h-screen w-full max-w-lg bg-canvas text-ink">
         <Header />
         <section className="px-5 py-10 text-center">
-          <p className="text-sm break-keep text-[#F2F4F7]">스탬프를 불러오지 못했어요</p>
+          <p className="text-sm break-keep text-ink">스탬프를 불러오지 못했어요</p>
           <Link
             href="/stamps"
-            className="mt-4 inline-flex min-h-11 items-center rounded-2xl border border-white/20 px-5 text-sm text-[#F2F4F7]"
+            className="mt-4 inline-flex min-h-11 items-center rounded-2xl border border-ink/20 px-5 text-sm text-ink"
           >
             다시 시도
           </Link>
@@ -123,14 +132,14 @@ export default async function StampsPage() {
   const target = complete ? null : pickEmptySigungu(board);
 
   return (
-    <main className="mx-auto min-h-screen w-full max-w-lg bg-[#0E1116] text-[#F2F4F7]">
+    <main className="mx-auto min-h-screen w-full max-w-lg bg-canvas text-ink">
       <Header />
 
       {/* ── 진행 표시 (§15.3-1) — 비율(%)로 쓰지 않습니다 ─────────────────── */}
       <section className="px-5 pt-4 pb-5 text-center">
-        <p className="text-sm text-[#98A2B3]">부산 {STAMP_TOTAL}개 구·군 중</p>
-        <p className="mt-1 text-2xl font-bold text-[#F2F4F7]">
-          <span aria-hidden className="text-[#FF4D4D]">
+        <p className="text-sm text-ink-muted">부산 {STAMP_TOTAL}개 구·군 중</p>
+        <p className="mt-1 text-2xl font-bold text-ink">
+          <span aria-hidden className="text-brand-deep">
             ●{" "}
           </span>
           {board.filledCount} / {STAMP_TOTAL}
@@ -138,13 +147,13 @@ export default async function StampsPage() {
       </section>
 
       {complete ? (
-        <p className="mb-4 px-5 text-center text-sm font-semibold break-keep text-[#F2F4F7]">
+        <p className="mb-4 px-5 text-center text-sm font-semibold break-keep text-ink">
           부산 {STAMP_TOTAL}개 구·군을 모두 다녀왔습니다
         </p>
       ) : null}
 
       {empty ? (
-        <p className="mb-4 px-5 text-center text-sm leading-relaxed break-keep text-[#98A2B3]">
+        <p className="mb-4 px-5 text-center text-sm leading-relaxed break-keep text-ink-muted">
           다녀온 곳에서 &lsquo;다녀왔어요&rsquo;를 누르면 스탬프가 찍혀요.
         </p>
       ) : null}
@@ -157,21 +166,21 @@ export default async function StampsPage() {
           전부 채웠으면 고를 빈 곳이 없으므로 버튼이 `다시 던지기` 로 바뀝니다(§15.4). */}
       <section className="px-5 pt-8">
         {!empty && !complete ? (
-          <p className="mb-2 text-center text-sm break-keep text-[#98A2B3]">
+          <p className="mb-2 text-center text-sm break-keep text-ink-muted">
             아직 안 가 본 곳으로 던져 볼까요?
           </p>
         ) : null}
 
         <Link
           href={target ? `/?scope=${encodeURIComponent(target)}` : "/"}
-          className="flex min-h-14 w-full items-center justify-center rounded-2xl bg-[#FF4D4D] text-base font-semibold text-white"
+          className="flex min-h-14 w-full items-center justify-center rounded-2xl bg-brand-deep text-base font-semibold text-white"
         >
           {complete ? "다시 던지기" : empty || !target ? "다트 던지러 가기" : "빈 곳 중에서 다트 던지기"}
         </Link>
 
         <Link
           href="/archive"
-          className="mt-4 flex min-h-12 items-center justify-center text-sm text-[#F2F4F7] underline underline-offset-2"
+          className="mt-4 flex min-h-12 items-center justify-center text-sm text-ink underline underline-offset-2"
         >
           내 여행 기록 보기 →
         </Link>

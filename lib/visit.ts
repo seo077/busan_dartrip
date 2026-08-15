@@ -79,6 +79,14 @@ export interface StampCell {
   name: string;
   /** 이 구·군에 방문이 1건이라도 있는가. **횟수는 세지 않습니다** (§15.1) */
   filled: boolean;
+  /**
+   * 채운 칸에 입힐 테마 (`D-61-1` — "채워진 칸은 그 방문의 테마 색").
+   *
+   * 한 구·군에 방문이 여럿이면 **가장 최근 방문**의 테마를 씁니다. 횟수를 세지 않는다는 §15.1
+   * 과 어긋나지 않습니다 — 색은 세는 값이 아니라 **마지막으로 무엇을 하러 갔는지**의 표시입니다.
+   * 빈 칸이거나 그 장소가 미분류면 null 이고, 화면은 그때 포인트 색으로 떨어집니다.
+   */
+  theme: ThemeKey | null;
 }
 
 export interface StampBoard {
@@ -101,7 +109,12 @@ export async function loadStampBoard(authorRef: string): Promise<StampBoard> {
 
   const [sigunguRes, visitRes, poolRes] = await Promise.all([
     db.from("sigungu").select("code,name"),
-    db.from("reviews").select("place_id,places!inner(sigungu_code)").eq("author_ref", authorRef),
+    db
+      .from("reviews")
+      .select("place_id,created_at,places!inner(sigungu_code,theme)")
+      .eq("author_ref", authorRef)
+      // 최신순으로 받아 **구·군마다 첫 행**이 곧 가장 최근 방문이 됩니다 (칸 색의 근거).
+      .order("created_at", { ascending: false }),
     db.from("dart_pool_stats").select("sigungu_code,place_count").gt("place_count", 0),
   ]);
 
@@ -118,11 +131,23 @@ export async function loadStampBoard(authorRef: string): Promise<StampBoard> {
   }
 
   const visited = new Set<string>();
-  for (const row of visitRes.data ?? []) {
-    const place = (row as { places: { sigungu_code: string } | { sigungu_code: string }[] | null })
-      .places;
-    const code = Array.isArray(place) ? place[0]?.sigungu_code : place?.sigungu_code;
-    if (code) visited.add(code);
+  /** 구·군 → 가장 최근 방문의 테마 (`D-61-1` 칸 색) */
+  const themeByCode = new Map<string, ThemeKey | null>();
+  type VisitRow = {
+    places:
+      | { sigungu_code: string; theme: string | null }
+      | { sigungu_code: string; theme: string | null }[]
+      | null;
+  };
+  for (const row of (visitRes.data ?? []) as unknown as VisitRow[]) {
+    const place = Array.isArray(row.places) ? row.places[0] : row.places;
+    const code = place?.sigungu_code;
+    if (!code) continue;
+    // 최신순이므로 **처음 만난 행만** 채택합니다.
+    if (!visited.has(code)) {
+      themeByCode.set(code, isThemeKey(place?.theme) ? place.theme : null);
+    }
+    visited.add(code);
   }
 
   // 풀 조회가 실패하면 후보를 좁히지 않습니다 — 그 실패로 스탬프판까지 멈출 이유가 없고,
@@ -135,6 +160,7 @@ export async function loadStampBoard(authorRef: string): Promise<StampBoard> {
     code,
     name: nameByCode.get(code) ?? code,
     filled: visited.has(code),
+    theme: themeByCode.get(code) ?? null,
   }));
 
   return {

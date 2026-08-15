@@ -67,7 +67,7 @@ export function ShareButton({ title, text }: { title: string; text: string }) {
         type="button"
         onClick={() => void share()}
         aria-label="이 결과 공유하기"
-        className="flex h-11 w-11 items-center justify-center rounded-full text-xl text-[#F2F4F7]"
+        className="flex h-11 w-11 items-center justify-center rounded-full text-xl text-ink"
       >
         <span aria-hidden>⤴</span>
       </button>
@@ -77,7 +77,7 @@ export function ShareButton({ title, text }: { title: string; text: string }) {
       </span>
 
       {notice ? (
-        <p className="absolute top-12 right-1 w-max max-w-[70vw] rounded-xl bg-black/75 px-3 py-2 text-xs break-keep text-[#F2F4F7] backdrop-blur-sm">
+        <p className="absolute top-12 right-1 w-max max-w-[70vw] rounded-xl border border-line bg-surface px-3 py-2 text-xs break-keep text-ink shadow-sm">
           {notice === "copied"
             ? "링크를 복사했어요"
             : "주소창의 주소를 복사해 공유해 주세요"}

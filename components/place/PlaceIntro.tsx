@@ -18,11 +18,11 @@ export function PlaceIntro({ text, source }: { text: string; source?: string }) 
   const [expanded, setExpanded] = useState(false);
 
   return (
-    <section className="border-t border-white/10 px-5 py-6">
-      <h2 className="mb-3 text-sm font-semibold text-[#98A2B3]">소개</h2>
+    <section className="border-t border-line px-5 py-6">
+      <h2 className="mb-3 text-sm font-semibold text-ink-muted">소개</h2>
 
       <p
-        className={`text-sm leading-relaxed break-keep whitespace-pre-line text-[#F2F4F7] ${
+        className={`text-sm leading-relaxed break-keep whitespace-pre-line text-ink ${
           expanded ? "" : "line-clamp-4"
         }`}
       >
@@ -32,12 +32,12 @@ export function PlaceIntro({ text, source }: { text: string; source?: string }) 
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="mt-2 min-h-11 text-sm text-[#98A2B3] underline underline-offset-4"
+        className="mt-2 min-h-11 text-sm text-ink-muted underline underline-offset-4"
       >
         {expanded ? "접기" : "더보기"}
       </button>
 
-      {source ? <p className="mt-1 text-[11px] text-[#98A2B3]">{source}</p> : null}
+      {source ? <p className="mt-1 text-[11px] text-ink-muted">{source}</p> : null}
     </section>
   );
 }

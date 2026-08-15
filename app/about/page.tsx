@@ -145,20 +145,20 @@ function SourceCard({
   credit?: boolean;
 }) {
   return (
-    <li className="rounded-2xl border border-white/10 bg-[#171B22] p-4">
-      <p className="text-sm font-medium break-keep text-[#F2F4F7]">
+    <li className="rounded-2xl border border-line bg-surface p-4">
+      <p className="text-sm font-medium break-keep text-ink">
         {credit ? "출처: " : ""}
         {provider} — {name}
       </p>
-      <p className="mt-1 text-xs leading-relaxed break-keep text-[#98A2B3]">{usage}</p>
+      <p className="mt-1 text-xs leading-relaxed break-keep text-ink-muted">{usage}</p>
     </li>
   );
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="border-t border-white/10 px-5 py-6">
-      <h2 className="mb-3 text-sm font-semibold text-[#98A2B3]">{title}</h2>
+    <section className="border-t border-line px-5 py-6">
+      <h2 className="mb-3 text-sm font-semibold text-ink-muted">{title}</h2>
       {children}
     </section>
   );
@@ -166,13 +166,13 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 export default function AboutPage() {
   return (
-    <main className="mx-auto min-h-screen w-full max-w-lg bg-[#0E1116] text-[#F2F4F7]">
+    <main className="mx-auto min-h-screen w-full max-w-lg bg-canvas text-ink">
       {/* 상단 바 (§8.1) — 도착지는 S1 하나입니다 (§9 전이 종합 "S6 → S1") */}
-      <header className="sticky top-0 z-20 flex h-14 items-center gap-1 bg-[#0E1116]/85 px-2 backdrop-blur">
+      <header className="sticky top-0 z-20 flex h-14 items-center gap-1 bg-canvas/85 px-2 backdrop-blur">
         <Link
           href="/"
           aria-label="뒤로"
-          className="flex h-11 w-11 items-center justify-center rounded-full text-xl text-[#F2F4F7]"
+          className="flex h-11 w-11 items-center justify-center rounded-full text-xl text-ink"
         >
           <span aria-hidden>←</span>
         </Link>
@@ -182,7 +182,7 @@ export default function AboutPage() {
       {/* ── 서비스 소개 (§8.1) ─────────────────────────────────────────────── */}
       <section className="px-5 pt-2 pb-6">
         <p className="text-xl font-bold">부산 Dartrip</p>
-        <p className="mt-3 text-sm leading-relaxed break-keep text-[#98A2B3]">
+        <p className="mt-3 text-sm leading-relaxed break-keep text-ink-muted">
           부산 지도에 다트를 던져, 추천 순위 없이 우연으로 부산 16개 구·군의 관광지를 만나는
           웹 서비스입니다.
         </p>
@@ -195,15 +195,15 @@ export default function AboutPage() {
             <li key={step} className="flex gap-3 text-sm leading-relaxed break-keep">
               <span
                 aria-hidden
-                className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/10 text-xs text-[#F2F4F7]"
+                className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-line text-xs text-ink"
               >
                 {i + 1}
               </span>
-              <span className="text-[#F2F4F7]">{step}</span>
+              <span className="text-ink">{step}</span>
             </li>
           ))}
         </ol>
-        <p className="mt-4 rounded-2xl border border-white/10 bg-[#171B22] p-4 text-sm leading-relaxed break-keep text-[#98A2B3]">
+        <p className="mt-4 rounded-2xl border border-line bg-surface p-4 text-sm leading-relaxed break-keep text-ink-muted">
           평점·인기·조회수는 사용하지 않습니다. 순위를 매기면 이미 알려진 곳이 다시 앞에 서고,
           그 뒤에 있던 장소는 계속 보이지 않기 때문입니다. 그래서 후기에도 별점이 없고, 목록의
           순서는 거리 하나로만 정합니다.
@@ -212,7 +212,7 @@ export default function AboutPage() {
 
       {/* ── 데이터 출처 (§8.1 · ④ §10) — 공공누리 의무 표기 ────────────────── */}
       <Section title="데이터 출처">
-        <p className="mb-4 text-sm leading-relaxed break-keep text-[#98A2B3]">
+        <p className="mb-4 text-sm leading-relaxed break-keep text-ink-muted">
           본 서비스는 아래 기관이 제공하는 공공데이터를 활용합니다.
         </p>
 
@@ -222,7 +222,7 @@ export default function AboutPage() {
           ))}
         </ul>
 
-        <p className="mt-4 text-xs leading-relaxed break-keep text-[#98A2B3]">
+        <p className="mt-4 text-xs leading-relaxed break-keep text-ink-muted">
           위 데이터는 공공누리 이용허락 조건에 따라 출처를 표시하여 사용합니다. 데이터의
           최신성·정확성은 각 제공기관의 갱신 주기를 따르며, 실제 운영 정보는 방문 전 확인해
           주세요.
@@ -231,7 +231,7 @@ export default function AboutPage() {
 
       {/* ── 설계 단계 참고 자료 — 서비스가 호출하지 않는 자료 ────────────────── */}
       <Section title="설계 단계 참고 자료">
-        <p className="mb-4 text-sm leading-relaxed break-keep text-[#98A2B3]">
+        <p className="mb-4 text-sm leading-relaxed break-keep text-ink-muted">
           아래 자료는 서비스를 만드는 과정에서 참고했을 뿐, 서비스가 실제로 불러오지는
           않습니다. 그래서 위의 데이터 출처와 나누어 적습니다.
         </p>
@@ -251,25 +251,25 @@ export default function AboutPage() {
       <Section title="개인정보">
         <ul className="space-y-2">
           {PRIVACY.map((line) => (
-            <li key={line} className="flex gap-2 text-sm leading-relaxed break-keep text-[#F2F4F7]">
-              <span aria-hidden className="text-[#98A2B3]">
+            <li key={line} className="flex gap-2 text-sm leading-relaxed break-keep text-ink">
+              <span aria-hidden className="text-ink-muted">
                 ·
               </span>
               <span>{line}</span>
             </li>
           ))}
         </ul>
-        <p className="mt-4 text-xs leading-relaxed break-keep text-[#98A2B3]">
+        <p className="mt-4 text-xs leading-relaxed break-keep text-ink-muted">
           다트의 기준점은 구·군이라 사용자의 현재 위치가 필요하지 않습니다. 그래서 브라우저에
           위치 권한을 요청하는 자리 자체가 없습니다. 장소 등록과 후기에 붙는 기기 식별값은 이
           기기에서 만든 임의의 값이며, 누구인지 알아내는 데 쓰지 않습니다.
         </p>
         <Link
           href="/privacy?from=about"
-          className="mt-4 flex min-h-12 w-full items-center justify-between rounded-2xl border border-white/10 bg-[#171B22] px-4 text-sm text-[#F2F4F7]"
+          className="mt-4 flex min-h-12 w-full items-center justify-between rounded-2xl border border-line bg-surface px-4 text-sm text-ink"
         >
           <span>개인정보 처리방침</span>
-          <span aria-hidden className="text-[#98A2B3]">
+          <span aria-hidden className="text-ink-muted">
             →
           </span>
         </Link>
@@ -277,10 +277,10 @@ export default function AboutPage() {
 
       {/* ── 만든 사람들 (§8.1) ────────────────────────────────────────────── */}
       <Section title="만든 사람들">
-        <p className="text-sm leading-relaxed break-keep text-[#F2F4F7]">
+        <p className="text-sm leading-relaxed break-keep text-ink">
           2026 관광데이터 활용 공모전 출품작
         </p>
-        <p className="mt-1 text-xs text-[#98A2B3]">v1.0.0</p>
+        <p className="mt-1 text-xs text-ink-muted">v1.0.0</p>
       </Section>
     </main>
   );

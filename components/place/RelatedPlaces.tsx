@@ -22,15 +22,15 @@ import type { RelatedView } from "@/components/place/types";
 function Card({ item }: { item: RelatedView }) {
   const inner = (
     <>
-      <p className="line-clamp-2 text-sm font-medium break-keep text-[#F2F4F7]">{item.name}</p>
-      <p className="mt-1 line-clamp-1 text-xs text-[#98A2B3]">
+      <p className="line-clamp-2 text-sm font-medium break-keep text-ink">{item.name}</p>
+      <p className="mt-1 line-clamp-1 text-xs text-ink-muted">
         {[item.region, item.category].filter(Boolean).join(" · ") || " "}
       </p>
     </>
   );
 
   const className =
-    "flex h-24 w-36 shrink-0 snap-start flex-col justify-end rounded-2xl border border-white/10 bg-[#171B22] p-3";
+    "flex h-24 w-36 shrink-0 snap-start flex-col justify-end rounded-2xl border border-line bg-surface p-3";
 
   return item.placeId ? (
     <Link href={`/place/${item.placeId}`} className={className}>
@@ -45,8 +45,8 @@ export function RelatedPlaces({ items }: { items: RelatedView[] }) {
   if (items.length === 0) return null;
 
   return (
-    <section className="border-t border-white/10 py-6">
-      <h2 className="mb-3 px-5 text-sm font-semibold text-[#98A2B3]">함께 가볼 만한 곳</h2>
+    <section className="border-t border-line py-6">
+      <h2 className="mb-3 px-5 text-sm font-semibold text-ink-muted">함께 가볼 만한 곳</h2>
 
       <div className="flex snap-x gap-2 overflow-x-auto px-5 pb-1">
         {items.map((item) => (
@@ -54,7 +54,7 @@ export function RelatedPlaces({ items }: { items: RelatedView[] }) {
         ))}
       </div>
 
-      <p className="mt-3 px-5 text-[11px] text-[#98A2B3]">
+      <p className="mt-3 px-5 text-[11px] text-ink-muted">
         한국관광공사 연관관광지 정보에서 가져왔어요. 순위가 아니라 함께 찾는 곳들이에요.
       </p>
     </section>

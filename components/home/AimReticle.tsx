@@ -36,7 +36,12 @@ export function AimReticle({ aim, targets, active, idle, themeName }: Props) {
 
   const pulling = aim !== null;
   const blocked = aim !== null && aim.target.count === 0;
-  const accent = blocked ? "#98A2B3" : "#FF4D4D";
+  /*
+   * 이 층은 **지도 타일 위**에 그려집니다 — 페이지 바탕이 아니라 지도 그림이 배경입니다.
+   * 그래서 밝은 화면 고정(`D-61-3`) 뒤에도 이름표는 어두운 알약을 그대로 둡니다(지도 위 글자는
+   * 그편이 읽힙니다). 바뀐 것은 포인트 색뿐입니다 — `#FF4D4D` → `#E85D75` (`D-61-1`).
+   */
+  const accent = blocked ? "#6B6472" : "#E85D75";
 
   return (
     /*
@@ -69,7 +74,7 @@ export function AimReticle({ aim, targets, active, idle, themeName }: Props) {
               marginLeft: -size / 2,
               marginTop: -size / 2,
               borderRadius: "50%",
-              border: `${picked ? 2 : 1}px solid ${empty ? "rgba(152,162,179,0.85)" : accent}`,
+              border: `${picked ? 2 : 1}px solid ${empty ? "rgba(107,100,114,0.85)" : accent}`,
               background: picked && !empty ? accent : "transparent",
               opacity: pulling ? (empty ? 0.5 : 1) : idle ? 0.4 : 0,
               boxShadow: picked && !empty ? `0 0 12px ${accent}` : undefined,
@@ -121,9 +126,9 @@ export function AimReticle({ aim, targets, active, idle, themeName }: Props) {
             className="absolute left-1/2 block -translate-x-1/2 whitespace-nowrap rounded-full px-3 py-1 text-center text-xs font-semibold"
             style={{
               top: 30,
-              background: "rgba(0,0,0,0.72)",
-              color: blocked ? "#FFC9C9" : "#F2F4F7",
-              border: `1px solid ${blocked ? "rgba(255,201,201,0.5)" : "rgba(255,77,77,0.55)"}`,
+              background: "rgba(46,42,51,0.78)",
+              color: blocked ? "#F0E3D6" : "#FFF8F0",
+              border: `1px solid ${blocked ? "rgba(240,227,214,0.5)" : "rgba(232,93,117,0.65)"}`,
             }}
           >
             {aim.target.name}
@@ -135,7 +140,11 @@ export function AimReticle({ aim, targets, active, idle, themeName }: Props) {
           {aim.borderline && !blocked ? (
             <span
               className="absolute left-1/2 block -translate-x-1/2 whitespace-nowrap text-[10px]"
-              style={{ top: 54, color: "#FFC9C9" }}
+              style={{
+                top: 54,
+                color: "#FFF8F0",
+                textShadow: "0 1px 3px rgba(46,42,51,0.9)",
+              }}
             >
               경계 근처예요
             </span>

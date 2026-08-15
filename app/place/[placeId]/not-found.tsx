@@ -15,7 +15,7 @@ import { ResultNotice } from "@/components/result/ResultNotice";
 
 export default function PlaceNotFound() {
   return (
-    <main className="mx-auto min-h-screen w-full max-w-lg bg-[#0E1116] text-[#F2F4F7]">
+    <main className="mx-auto min-h-screen w-full max-w-lg bg-canvas text-ink">
       <ResultNotice
         title="찾을 수 없는 장소예요"
         body="주소가 바뀌었거나 아직 공개되지 않은 곳일 수 있어요. 대신 한 번 던져 보시겠어요?"

@@ -54,7 +54,7 @@ import {
   type MapViewport,
 } from "@/lib/aim";
 import { recordThrow, todayThrowCount } from "@/lib/device";
-import { themeIcon, themeLabel } from "@/lib/format";
+import { themeColor, themeIcon, themeLabel } from "@/lib/format";
 import { usePrefersReducedMotion } from "@/lib/motion";
 import { THEME_KEYS, type ThemeKey } from "@/lib/theme";
 
@@ -429,10 +429,10 @@ export function DartSetup({
 
   if (load.kind === "missing_config") {
     return (
-      <section className="mx-5 rounded-2xl border border-amber-500/40 bg-amber-500/10 p-5 text-sm leading-relaxed text-[#F2F4F7]">
+      <section className="mx-5 rounded-2xl border border-brand/45 bg-brand/10 p-5 text-sm leading-relaxed text-ink">
         <h2 className="mb-2 text-base font-semibold">데이터베이스 설정이 아직 없습니다</h2>
         <p>{load.message}</p>
-        {load.detail ? <p className="mt-2 text-xs text-[#98A2B3]">{load.detail}</p> : null}
+        {load.detail ? <p className="mt-2 text-xs text-ink-muted">{load.detail}</p> : null}
       </section>
     );
   }
@@ -440,18 +440,18 @@ export function DartSetup({
   return (
     <section className="px-5 pb-10">
       {offline ? (
-        <div className="mb-4 rounded-xl bg-[#FF4D4D]/15 px-4 py-2 text-center text-sm text-[#FF9B9B]">
+        <div className="mb-4 rounded-xl bg-brand/15 px-4 py-2 text-center text-sm text-brand-deep">
           연결이 끊겼습니다
         </div>
       ) : null}
 
       {load.kind === "error" ? (
-        <div className="rounded-2xl border border-white/10 bg-[#171B22] p-6 text-center">
-          <p className="text-sm text-[#F2F4F7]">{load.message}</p>
+        <div className="rounded-2xl border border-line bg-surface p-6 text-center">
+          <p className="text-sm text-ink">{load.message}</p>
           <button
             type="button"
             onClick={() => void fetchStats()}
-            className="mt-4 min-h-11 rounded-2xl bg-[#FF4D4D] px-6 text-sm font-semibold text-white"
+            className="mt-4 min-h-11 rounded-2xl bg-brand-deep px-6 text-sm font-semibold text-white"
           >
             다시 시도
           </button>
@@ -464,27 +464,27 @@ export function DartSetup({
               dimmed ? "pointer-events-none opacity-35" : "opacity-100"
             }`}
           >
-            <h2 className="mt-1 mb-2 text-sm font-semibold text-[#98A2B3]">범위</h2>
+            <h2 className="mt-1 mb-2 text-sm font-semibold text-ink-muted">범위</h2>
             {load.kind === "loading" ? (
-              <div className="h-12 w-full animate-pulse rounded-2xl bg-white/5" />
+              <div className="h-12 w-full animate-pulse rounded-2xl bg-line/50" />
             ) : (
               <button
                 type="button"
                 onClick={() => setSheetOpen(true)}
-                className="flex min-h-12 w-full items-center justify-between rounded-2xl border border-white/10 bg-[#171B22] px-4 text-left text-[#F2F4F7]"
+                className="flex min-h-12 w-full items-center justify-between rounded-2xl border border-line bg-surface px-4 text-left text-ink"
               >
                 <span className="font-medium">{scopeLabel}</span>
-                <span className="text-[#98A2B3]">
+                <span className="text-ink-muted">
                   {currentCount !== null ? `${currentCount.toLocaleString("ko-KR")}곳 ` : ""}▾
                 </span>
               </button>
             )}
 
-            <h2 className="mt-6 mb-2 text-sm font-semibold text-[#98A2B3]">테마</h2>
+            <h2 className="mt-6 mb-2 text-sm font-semibold text-ink-muted">테마</h2>
             {load.kind === "loading" ? (
               <div className="grid grid-cols-5 gap-2">
                 {THEME_CHOICES.map((_, i) => (
-                  <div key={i} className="h-20 animate-pulse rounded-2xl bg-white/5" />
+                  <div key={i} className="h-20 animate-pulse rounded-2xl bg-line/50" />
                 ))}
               </div>
             ) : (
@@ -505,11 +505,22 @@ export function DartSetup({
                         setEmptyNotice(false);
                         setAimBlock(null);
                       }}
+                      /*
+                        고른 테마는 **그 테마의 색**으로 물듭니다 (`D-61-2` — 테마 색 배정 고정).
+                        스탬프판·결과 카드와 같은 색을 쓰므로 세 화면이 같은 말을 합니다.
+                        '전체'(choice === null)만 포인트 색입니다.
+                      */
                       className={`flex min-h-20 flex-col items-center justify-center gap-1 rounded-2xl border px-1 py-2 text-center transition ${
-                        selected
-                          ? "border-[#FF4D4D] bg-[#FF4D4D]/15 text-[#F2F4F7]"
-                          : "border-white/10 bg-[#171B22] text-[#98A2B3]"
+                        selected ? "text-ink" : "border-line bg-surface text-ink-muted"
                       } ${count === 0 ? "opacity-45" : ""}`}
+                      style={
+                        selected
+                          ? {
+                              borderColor: themeColor(choice),
+                              backgroundColor: `color-mix(in srgb, ${themeColor(choice)} 22%, transparent)`,
+                            }
+                          : undefined
+                      }
                     >
                       <span aria-hidden className="text-lg leading-none">
                         {themeIcon(choice)}
@@ -517,7 +528,7 @@ export function DartSetup({
                       <span className="text-[11px] leading-tight break-keep">
                         {themeLabel(choice)}
                       </span>
-                      <span className="text-[10px] leading-none text-[#98A2B3]">{count}</span>
+                      <span className="text-[10px] leading-none text-ink-muted">{count}</span>
                     </button>
                   );
                 })}
@@ -526,8 +537,8 @@ export function DartSetup({
 
             {/* 0건 조합 안내 (§3.3 "조합 빈값") — 겨눈 구·군이 비었을 때도 같은 자리에서 답합니다 */}
             {blockedByCombination || emptyNotice || aimBlock ? (
-              <div className="mt-5 rounded-2xl border border-white/10 bg-[#171B22] p-4 text-center">
-                <p className="text-sm break-keep text-[#F2F4F7]">
+              <div className="mt-5 rounded-2xl border border-line bg-surface p-4 text-center">
+                <p className="text-sm break-keep text-ink">
                   {aimBlock
                     ? `${aimBlock.name}에는 아직 ${themeName} 장소가 없어요`
                     : scope
@@ -542,7 +553,7 @@ export function DartSetup({
                       setEmptyNotice(false);
                       setAimBlock(null);
                     }}
-                    className="mt-3 min-h-11 rounded-2xl border border-white/20 px-5 text-sm text-[#F2F4F7]"
+                    className="mt-3 min-h-11 rounded-2xl border border-ink/20 px-5 text-sm text-ink"
                   >
                     테마를 전체로
                   </button>
@@ -554,7 +565,7 @@ export function DartSetup({
                       setEmptyNotice(false);
                       setAimBlock(null);
                     }}
-                    className="mt-3 min-h-11 rounded-2xl border border-white/20 px-5 text-sm text-[#F2F4F7]"
+                    className="mt-3 min-h-11 rounded-2xl border border-ink/20 px-5 text-sm text-ink"
                   >
                     범위를 부산 전체로
                   </button>
@@ -566,7 +577,7 @@ export function DartSetup({
           {/* ③ 지도 = 과녁 (§3.2-2 · D-36) — 다트 바로 위입니다 */}
           <div className="mt-7">
             <div className="mb-2 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-[#98A2B3]">지도</h2>
+              <h2 className="text-sm font-semibold text-ink-muted">지도</h2>
               <button
                 type="button"
                 role="switch"
@@ -575,10 +586,10 @@ export function DartSetup({
                 onClick={() => setAimOn((v) => !v)}
                 className={`flex min-h-9 items-center gap-2 rounded-full border px-3 text-xs transition ${
                   aimToggleDisabled
-                    ? "cursor-not-allowed border-white/10 text-[#98A2B3] opacity-50"
+                    ? "cursor-not-allowed border-line text-ink-muted opacity-50"
                     : aimOn
-                      ? "border-[#FF4D4D] bg-[#FF4D4D]/15 text-[#F2F4F7]"
-                      : "border-white/15 text-[#98A2B3]"
+                      ? "border-brand bg-brand/15 text-ink"
+                      : "border-line text-ink-muted"
                 }`}
               >
                 <span aria-hidden>🎯</span>
@@ -623,14 +634,14 @@ export function DartSetup({
                 >
                   {stage !== "blocked" ? (
                     <>
-                      <span className="dart-impact-ring absolute left-1/2 top-1/2 block h-9 w-9 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-[#FF4D4D]/70" />
+                      <span className="dart-impact-ring absolute left-1/2 top-1/2 block h-9 w-9 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-brand/70" />
                       <span
-                        className="dart-impact-ring absolute left-1/2 top-1/2 block h-9 w-9 -translate-x-1/2 -translate-y-1/2 rounded-full border border-[#FF4D4D]/45"
+                        className="dart-impact-ring absolute left-1/2 top-1/2 block h-9 w-9 -translate-x-1/2 -translate-y-1/2 rounded-full border border-brand/45"
                         style={{ animationDelay: "160ms" }}
                       />
                     </>
                   ) : (
-                    <span className="absolute left-1/2 top-1/2 block h-9 w-9 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-dashed border-[#98A2B3]/70" />
+                    <span className="absolute left-1/2 top-1/2 block h-9 w-9 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-dashed border-ink-muted/70" />
                   )}
                 </div>
               ) : null}
@@ -655,14 +666,14 @@ export function DartSetup({
                 <button
                   type="button"
                   onClick={sequence.skip}
-                  className="absolute right-3 top-3 z-10 min-h-9 rounded-full bg-black/60 px-4 text-xs text-white"
+                  className="absolute right-3 top-3 z-10 min-h-9 rounded-full bg-ink/70 px-4 text-xs text-canvas"
                 >
                   건너뛰기
                 </button>
               ) : null}
             </div>
 
-            <p className="mt-2 min-h-5 text-center text-xs break-keep text-[#98A2B3]">{aimNote}</p>
+            <p className="mt-2 min-h-5 text-center text-xs break-keep text-ink-muted">{aimNote}</p>
           </div>
 
           {/* ④ 다트 (§3.2-5 → §4.1 1단계) — 버튼이 아니라 잡아 당겼다 놓는 다트입니다 */}
@@ -679,7 +690,7 @@ export function DartSetup({
           />
 
           {throwError ? (
-            <p className="mt-1 text-center text-sm text-[#FF9B9B]">{throwError}</p>
+            <p className="mt-1 text-center text-sm text-brand-deep">{throwError}</p>
           ) : null}
 
           <div
@@ -688,14 +699,14 @@ export function DartSetup({
             }`}
           >
             {/* 오늘 N번째 (§3.2-6 · D-16) */}
-            <p className="mt-4 text-center text-sm text-[#98A2B3]">
+            <p className="mt-4 text-center text-sm text-ink-muted">
               {todayCount > 0 ? `오늘 ${todayCount}번째 다트` : "오늘의 첫 다트"}
             </p>
 
             {/* 장소 등록 (§3.2-7) → S5 */}
-            <div className="mt-6 border-t border-white/10 pt-5 text-center text-sm text-[#98A2B3]">
+            <div className="mt-6 border-t border-line pt-5 text-center text-sm text-ink-muted">
               숨은 곳을 아시나요?{" "}
-              <Link href="/submit" className="text-[#F2F4F7] underline underline-offset-2">
+              <Link href="/submit" className="text-ink underline underline-offset-2">
                 장소 등록하기
               </Link>
             </div>
@@ -704,7 +715,7 @@ export function DartSetup({
               공공데이터 연동 확인 화면(AD-14). 이용자에게 크게 보일 이유는 없지만,
               공공데이터포털 운영계정 승인요건 ③ 을 확인하는 사람이 찾을 수 있어야 합니다.
             */}
-            <p className="mt-3 text-center text-xs text-[#98A2B3]/70">
+            <p className="mt-3 text-center text-xs text-ink-muted/70">
               <Link href="/data" className="underline underline-offset-2">
                 공공데이터 연동 확인
               </Link>
@@ -719,22 +730,22 @@ export function DartSetup({
       {/* 구·군 시트 (§3.2-3) — 0건은 흐리게 + 선택 불가 */}
       {sheetOpen && stats ? (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60"
+          className="fixed inset-0 z-50 flex items-end justify-center bg-ink/50"
           role="dialog"
           aria-modal="true"
           aria-label="범위 선택"
           onClick={() => setSheetOpen(false)}
         >
           <div
-            className="max-h-[75vh] w-full max-w-lg overflow-y-auto rounded-t-2xl bg-[#171B22] p-5"
+            className="max-h-[75vh] w-full max-w-lg overflow-y-auto rounded-t-2xl bg-surface p-5"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-base font-semibold text-[#F2F4F7]">범위 선택</h3>
-              <span className="text-xs text-[#98A2B3]">{themeName} 기준</span>
+              <h3 className="text-base font-semibold text-ink">범위 선택</h3>
+              <span className="text-xs text-ink-muted">{themeName} 기준</span>
             </div>
 
-            <p className="mb-3 text-xs break-keep text-[#98A2B3]">
+            <p className="mb-3 text-xs break-keep text-ink-muted">
               부산 전체를 고르면 다트로 겨눠서 구·군을 정할 수 있어요. 여기서 구·군을 직접 고르면
               조준 없이 그 구·군 안에서 뽑습니다.
             </p>
@@ -750,11 +761,11 @@ export function DartSetup({
                     setAimBlock(null);
                   }}
                   className={`flex min-h-12 w-full items-center justify-between rounded-xl px-4 text-left ${
-                    scope === null ? "bg-[#FF4D4D]/15 text-[#F2F4F7]" : "text-[#F2F4F7]"
+                    scope === null ? "bg-brand/15 text-ink" : "text-ink"
                   }`}
                 >
                   <span>부산 전체</span>
-                  <span className="text-xs text-[#98A2B3]">
+                  <span className="text-xs text-ink-muted">
                     {stats.totals[themeSlot].toLocaleString("ko-KR")}곳
                   </span>
                 </button>
@@ -776,14 +787,14 @@ export function DartSetup({
                       }}
                       className={`flex min-h-12 w-full items-center justify-between rounded-xl px-4 text-left ${
                         disabled
-                          ? "cursor-not-allowed text-[#98A2B3] opacity-40"
+                          ? "cursor-not-allowed text-ink-muted opacity-40"
                           : scope === s.code
-                            ? "bg-[#FF4D4D]/15 text-[#F2F4F7]"
-                            : "text-[#F2F4F7]"
+                            ? "bg-brand/15 text-ink"
+                            : "text-ink"
                       }`}
                     >
                       <span>{s.name}</span>
-                      <span className="text-xs text-[#98A2B3]">
+                      <span className="text-xs text-ink-muted">
                         {disabled ? "0곳" : `${count.toLocaleString("ko-KR")}곳`}
                       </span>
                     </button>
@@ -795,7 +806,7 @@ export function DartSetup({
             <button
               type="button"
               onClick={() => setSheetOpen(false)}
-              className="mt-4 min-h-12 w-full rounded-2xl border border-white/15 text-sm text-[#F2F4F7]"
+              className="mt-4 min-h-12 w-full rounded-2xl border border-line text-sm text-ink"
             >
               닫기
             </button>

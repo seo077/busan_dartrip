@@ -138,27 +138,27 @@ export function PlaceMap({
   }, [appKey, lat, lng]);
 
   return (
-    <section className="border-t border-white/10 px-5 py-6">
-      <h2 className="mb-3 text-sm font-semibold text-[#98A2B3]">지도</h2>
+    <section className="border-t border-line px-5 py-6">
+      <h2 className="mb-3 text-sm font-semibold text-ink-muted">지도</h2>
 
       <a
         href={mapLink}
         target="_blank"
         rel="noreferrer noopener"
-        className="relative block h-48 w-full overflow-hidden rounded-2xl border border-white/10 bg-[#171B22]"
+        className="relative block h-48 w-full overflow-hidden rounded-2xl border border-line bg-surface"
       >
         <div ref={containerRef} className="h-full w-full" aria-hidden />
 
         {state !== "ready" ? (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-[#171B22] px-6 text-center">
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-surface px-6 text-center">
             {state === "loading" ? (
-              <div className="h-20 w-32 animate-pulse rounded-xl bg-white/5" />
+              <div className="h-20 w-32 animate-pulse rounded-xl bg-line/50" />
             ) : (
               <>
                 <span aria-hidden className="text-2xl">
                   📍
                 </span>
-                <p className="text-xs break-keep text-[#98A2B3]">
+                <p className="text-xs break-keep text-ink-muted">
                   {lat.toFixed(5)}, {lng.toFixed(5)}
                   <br />
                   카카오맵에서 열어 보기

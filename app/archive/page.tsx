@@ -69,12 +69,12 @@ function groupByMonth(entries: VisitEntry[]): { month: string; items: VisitEntry
 
 function Header() {
   return (
-    <header className="sticky top-0 z-20 flex h-14 items-center gap-1 bg-[#0E1116]/85 px-2 backdrop-blur">
+    <header className="sticky top-0 z-20 flex h-14 items-center gap-1 bg-canvas/85 px-2 backdrop-blur">
       {/* §16.5 — 뒤로는 스탬프판입니다 */}
       <Link
         href="/stamps"
         aria-label="뒤로"
-        className="flex h-11 w-11 items-center justify-center rounded-full text-xl text-[#F2F4F7]"
+        className="flex h-11 w-11 items-center justify-center rounded-full text-xl text-ink"
       >
         <span aria-hidden>←</span>
       </Link>
@@ -88,22 +88,22 @@ function VisitCard({ entry }: { entry: VisitEntry }) {
     <li>
       <Link
         href={`/place/${entry.placeId}`}
-        className="flex gap-3 rounded-2xl border border-white/10 bg-[#171B22] p-4"
+        className="flex gap-3 rounded-2xl border border-line bg-surface p-4"
       >
         <span aria-hidden className="text-xl leading-none">
           {themeIcon(entry.theme)}
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block text-sm font-medium break-keep text-[#F2F4F7]">
+          <span className="block text-sm font-medium break-keep text-ink">
             {entry.placeName}
           </span>
-          <span className="mt-1 block text-xs text-[#98A2B3]">
+          <span className="mt-1 block text-xs text-ink-muted">
             {entry.sigunguName}
             {entry.themeLabel ? ` · ${entry.themeLabel}` : ""}
           </span>
-          <span className="mt-1 block text-xs text-[#98A2B3]">{dayLabel(entry.visitedAt)}</span>
+          <span className="mt-1 block text-xs text-ink-muted">{dayLabel(entry.visitedAt)}</span>
           {entry.body ? (
-            <span className="mt-2 block text-sm break-keep text-[#F2F4F7]">
+            <span className="mt-2 block text-sm break-keep text-ink">
               &ldquo;{entry.body}&rdquo;
             </span>
           ) : null}
@@ -114,7 +114,7 @@ function VisitCard({ entry }: { entry: VisitEntry }) {
           <img
             src={entry.photoPath}
             alt=""
-            className="h-16 w-16 shrink-0 rounded-xl border border-white/10 object-cover"
+            className="h-16 w-16 shrink-0 rounded-xl border border-line object-cover"
           />
         ) : null}
       </Link>
@@ -144,13 +144,13 @@ export default async function ArchivePage({
   // §16.4 "오류"
   if (!archive) {
     return (
-      <main className="mx-auto min-h-screen w-full max-w-lg bg-[#0E1116] text-[#F2F4F7]">
+      <main className="mx-auto min-h-screen w-full max-w-lg bg-canvas text-ink">
         <Header />
         <section className="px-5 py-10 text-center">
-          <p className="text-sm break-keep text-[#F2F4F7]">기록을 불러오지 못했어요</p>
+          <p className="text-sm break-keep text-ink">기록을 불러오지 못했어요</p>
           <Link
             href="/archive"
-            className="mt-4 inline-flex min-h-11 items-center rounded-2xl border border-white/20 px-5 text-sm text-[#F2F4F7]"
+            className="mt-4 inline-flex min-h-11 items-center rounded-2xl border border-ink/20 px-5 text-sm text-ink"
           >
             다시 시도
           </Link>
@@ -163,15 +163,15 @@ export default async function ArchivePage({
   // §16.4 "빈 목록" — **필터 칩은 그리지 않습니다**(고를 것이 없습니다)
   if (archive.total === 0) {
     return (
-      <main className="mx-auto min-h-screen w-full max-w-lg bg-[#0E1116] text-[#F2F4F7]">
+      <main className="mx-auto min-h-screen w-full max-w-lg bg-canvas text-ink">
         <Header />
         <section className="px-5 py-10 text-center">
-          <p className="text-sm leading-relaxed break-keep text-[#98A2B3]">
+          <p className="text-sm leading-relaxed break-keep text-ink-muted">
             아직 기록이 없어요. 다녀온 곳에서 &lsquo;다녀왔어요&rsquo;를 눌러 보세요.
           </p>
           <Link
             href="/"
-            className="mt-6 inline-flex min-h-14 w-full max-w-xs items-center justify-center rounded-2xl bg-[#FF4D4D] text-base font-semibold text-white"
+            className="mt-6 inline-flex min-h-14 w-full max-w-xs items-center justify-center rounded-2xl bg-brand-deep text-base font-semibold text-white"
           >
             다트 던지러 가기
           </Link>
@@ -184,11 +184,11 @@ export default async function ArchivePage({
   const groups = groupByMonth(archive.entries);
 
   return (
-    <main className="mx-auto min-h-screen w-full max-w-lg bg-[#0E1116] text-[#F2F4F7]">
+    <main className="mx-auto min-h-screen w-full max-w-lg bg-canvas text-ink">
       <Header />
 
       <section className="px-5 pt-2 pb-4">
-        <p className="text-sm text-[#98A2B3]">전체 {archive.total}곳</p>
+        <p className="text-sm text-ink-muted">전체 {archive.total}곳</p>
 
         {/* ── 구·군 필터 (§16.3-2) — 방문한 구·군만 ─────────────────────── */}
         <ul className="mt-3 flex flex-wrap gap-2">
@@ -198,8 +198,8 @@ export default async function ArchivePage({
               aria-current={gu === null ? "true" : undefined}
               className={`flex min-h-10 items-center rounded-full border px-4 text-sm ${
                 gu === null
-                  ? "border-[#FF4D4D] bg-[#FF4D4D]/15 text-[#F2F4F7]"
-                  : "border-white/10 bg-[#171B22] text-[#98A2B3]"
+                  ? "border-brand bg-brand/15 text-ink"
+                  : "border-line bg-surface text-ink-muted"
               }`}
             >
               전체
@@ -212,8 +212,8 @@ export default async function ArchivePage({
                 aria-current={gu === chip.code ? "true" : undefined}
                 className={`flex min-h-10 items-center rounded-full border px-4 text-sm ${
                   gu === chip.code
-                    ? "border-[#FF4D4D] bg-[#FF4D4D]/15 text-[#F2F4F7]"
-                    : "border-white/10 bg-[#171B22] text-[#98A2B3]"
+                    ? "border-brand bg-brand/15 text-ink"
+                    : "border-line bg-surface text-ink-muted"
                 }`}
               >
                 {chip.name}
@@ -224,8 +224,8 @@ export default async function ArchivePage({
       </section>
 
       {groups.map((group) => (
-        <section key={group.month} className="border-t border-white/10 px-5 py-5">
-          <h2 className="mb-3 text-sm font-semibold text-[#98A2B3]">{group.month}</h2>
+        <section key={group.month} className="border-t border-line px-5 py-5">
+          <h2 className="mb-3 text-sm font-semibold text-ink-muted">{group.month}</h2>
           <ul className="space-y-2">
             {group.items.map((entry) => (
               <VisitCard key={entry.reviewId} entry={entry} />

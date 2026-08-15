@@ -24,7 +24,7 @@ function directionsHref(place: PlaceDetailView): string {
 
 function Badge({ children, label }: { children: React.ReactNode; label: string }) {
   return (
-    <span className="rounded-full border border-white/15 bg-white/5 px-2.5 py-1 text-xs text-[#F2F4F7]">
+    <span className="rounded-full border border-line bg-line/50 px-2.5 py-1 text-xs text-ink">
       <span aria-hidden>{children}</span>
       <span className="sr-only">{label}</span>
     </span>
@@ -35,7 +35,7 @@ export function PlaceTitle({ place }: { place: PlaceDetailView }) {
   return (
     <section className="px-5 pt-5 pb-6">
       <div className="flex items-start justify-between gap-3">
-        <h1 className="text-2xl leading-tight font-bold break-keep text-[#F2F4F7]">
+        <h1 className="text-2xl leading-tight font-bold break-keep text-ink">
           {place.name}
         </h1>
         <div className="mt-1 flex shrink-0 gap-1.5">
@@ -44,13 +44,13 @@ export function PlaceTitle({ place }: { place: PlaceDetailView }) {
         </div>
       </div>
 
-      <p className="mt-2 text-sm text-[#98A2B3]">
+      <p className="mt-2 text-sm text-ink-muted">
         <span aria-hidden>{themeIcon(place.theme)}</span> {themeLabel(place.theme)} ·{" "}
         {place.sigunguName}
       </p>
 
       {place.isGoodRestaurant ? (
-        <p className="mt-2 text-[11px] break-keep text-[#98A2B3]">
+        <p className="mt-2 text-[11px] break-keep text-ink-muted">
           🏅 지방자치단체가 지정한 모범음식점이에요. 알려드릴 뿐, 이 표시로 다른 곳을 덜
           보여주지는 않아요.
         </p>
@@ -60,7 +60,7 @@ export function PlaceTitle({ place }: { place: PlaceDetailView }) {
         href={directionsHref(place)}
         target="_blank"
         rel="noreferrer noopener"
-        className="mt-5 flex min-h-12 items-center justify-center rounded-2xl bg-[#FF4D4D] text-sm font-semibold text-white"
+        className="mt-5 flex min-h-12 items-center justify-center rounded-2xl bg-brand-deep text-sm font-semibold text-white"
       >
         🧭 길찾기
       </a>

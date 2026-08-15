@@ -112,76 +112,76 @@ export function AuthForm({ mode, next }: { mode: Mode; next: string | null }) {
   return (
     <section className="px-5 pb-12">
       {/* ── 아이디 ─────────────────────────────────────────────────────── */}
-      <h2 className="mb-2 text-sm font-semibold text-[#98A2B3]">아이디</h2>
+      <h2 className="mb-2 text-sm font-semibold text-ink-muted">아이디</h2>
       <input
         type="text"
         value={username}
         onChange={(e) => setUsername(e.target.value.slice(0, 20))}
         autoComplete="username"
         maxLength={20}
-        className="min-h-12 w-full rounded-2xl border border-white/10 bg-[#171B22] px-4 text-[#F2F4F7] placeholder:text-[#98A2B3]/60"
+        className="min-h-12 w-full rounded-2xl border border-line bg-surface px-4 text-ink placeholder:text-ink-muted/60"
         placeholder="영문·숫자 4~20자"
       />
-      {isSignup ? <p className="mt-1 text-xs text-[#98A2B3]">영문·숫자 4~20자</p> : null}
-      {idBad ? <p className="mt-1 text-xs text-[#FF9B9B]">영문·숫자 4~20자로 적어 주세요.</p> : null}
+      {isSignup ? <p className="mt-1 text-xs text-ink-muted">영문·숫자 4~20자</p> : null}
+      {idBad ? <p className="mt-1 text-xs text-brand-deep">영문·숫자 4~20자로 적어 주세요.</p> : null}
       {fieldError("username") ? (
-        <p className="mt-1 text-xs text-[#FF9B9B]">{fieldError("username")}</p>
+        <p className="mt-1 text-xs text-brand-deep">{fieldError("username")}</p>
       ) : null}
 
       {/* ── 비밀번호 ───────────────────────────────────────────────────── */}
-      <h2 className="mt-6 mb-2 text-sm font-semibold text-[#98A2B3]">비밀번호</h2>
+      <h2 className="mt-6 mb-2 text-sm font-semibold text-ink-muted">비밀번호</h2>
       <div className="relative">
         <input
           type={reveal ? "text" : "password"}
           value={password}
           onChange={(e) => setPassword(e.target.value.slice(0, 200))}
           autoComplete={isSignup ? "new-password" : "current-password"}
-          className="min-h-12 w-full rounded-2xl border border-white/10 bg-[#171B22] px-4 pr-14 text-[#F2F4F7]"
+          className="min-h-12 w-full rounded-2xl border border-line bg-surface px-4 pr-14 text-ink"
         />
         <button
           type="button"
           onClick={() => setReveal((v) => !v)}
           aria-label={reveal ? "비밀번호 가리기" : "비밀번호 보기"}
           aria-pressed={reveal}
-          className="absolute right-1 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full text-[#98A2B3]"
+          className="absolute right-1 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full text-ink-muted"
         >
           {reveal ? "🙈" : "👁"}
         </button>
       </div>
-      {isSignup ? <p className="mt-1 text-xs text-[#98A2B3]">8자 이상</p> : null}
-      {passwordBad ? <p className="mt-1 text-xs text-[#FF9B9B]">8자 이상으로 적어 주세요.</p> : null}
+      {isSignup ? <p className="mt-1 text-xs text-ink-muted">8자 이상</p> : null}
+      {passwordBad ? <p className="mt-1 text-xs text-brand-deep">8자 이상으로 적어 주세요.</p> : null}
       {fieldError("password") ? (
-        <p className="mt-1 text-xs text-[#FF9B9B]">{fieldError("password")}</p>
+        <p className="mt-1 text-xs text-brand-deep">{fieldError("password")}</p>
       ) : null}
 
       {/* ── 비밀번호 확인 (가입만) ─────────────────────────────────────── */}
       {isSignup ? (
         <>
-          <h2 className="mt-6 mb-2 text-sm font-semibold text-[#98A2B3]">비밀번호 확인</h2>
+          <h2 className="mt-6 mb-2 text-sm font-semibold text-ink-muted">비밀번호 확인</h2>
           <input
             type={reveal ? "text" : "password"}
             value={confirm}
             onChange={(e) => setConfirm(e.target.value.slice(0, 200))}
             autoComplete="new-password"
-            className="min-h-12 w-full rounded-2xl border border-white/10 bg-[#171B22] px-4 text-[#F2F4F7]"
+            className="min-h-12 w-full rounded-2xl border border-line bg-surface px-4 text-ink"
           />
-          {confirmBad ? <p className="mt-1 text-xs text-[#FF9B9B]">비밀번호가 서로 달라요.</p> : null}
+          {confirmBad ? <p className="mt-1 text-xs text-brand-deep">비밀번호가 서로 달라요.</p> : null}
           {fieldError("passwordConfirm") ? (
-            <p className="mt-1 text-xs text-[#FF9B9B]">{fieldError("passwordConfirm")}</p>
+            <p className="mt-1 text-xs text-brand-deep">{fieldError("passwordConfirm")}</p>
           ) : null}
 
           {/* ── 복구 불가 경고 (§14.3 · `D-46-5`) — 버튼 위 ─────────────── */}
-          <div className="mt-6 rounded-2xl border border-[#FF4D4D]/40 bg-[#FF4D4D]/10 p-4">
-            <p className="text-sm leading-relaxed break-keep text-[#F2F4F7]">
+          <div className="mt-6 rounded-2xl border border-brand/40 bg-brand/10 p-4">
+            <p className="text-sm leading-relaxed break-keep text-ink">
               ⚠ 비밀번호를 잊으면 되찾을 수 없습니다.
             </p>
-            <p className="mt-1 text-xs leading-relaxed break-keep text-[#98A2B3]">
+            <p className="mt-1 text-xs leading-relaxed break-keep text-ink-muted">
               이메일을 받지 않아서 재설정 메일을 보낼 곳이 없습니다.
             </p>
           </div>
 
           {/* ── 수집 항목 · 미승계 (§14.3 · `D-46-4`·`D-46-8`) ──────────── */}
-          <ul className="mt-4 space-y-2 text-xs leading-relaxed break-keep text-[#98A2B3]">
+          <ul className="mt-4 space-y-2 text-xs leading-relaxed break-keep text-ink-muted">
             <li>· 가입할 때 받는 것은 아이디와 비밀번호뿐입니다. 이메일·이름·프로필을 받지 않습니다.</li>
             <li>· 남용을 막기 위해 접속 주소를 잠깐 기록했다가 약 2일 뒤 지웁니다.</li>
             <li>· 로그인 전에 남긴 후기와 등록은 이 계정으로 옮겨지지 않습니다.</li>
@@ -194,20 +194,20 @@ export function AuthForm({ mode, next }: { mode: Mode; next: string | null }) {
         type="button"
         onClick={() => void submit()}
         disabled={busy}
-        className="mt-8 min-h-14 w-full rounded-2xl bg-[#FF4D4D] text-base font-semibold text-white disabled:bg-white/10 disabled:text-[#98A2B3]"
+        className="mt-8 min-h-14 w-full rounded-2xl bg-brand-deep text-base font-semibold text-white disabled:bg-line disabled:text-ink-muted"
       >
         {busy ? (isSignup ? "가입하는 중…" : "들어가는 중…") : isSignup ? "가입하고 시작" : "로그인"}
       </button>
 
       {failure && failure.field === null ? (
-        <p className="mt-3 text-center text-sm break-keep text-[#FF9B9B]">
+        <p className="mt-3 text-center text-sm break-keep text-brand-deep">
           {failure.message}
           {failure.retryAfterMinutes ? ` (약 ${failure.retryAfterMinutes}분)` : ""}
         </p>
       ) : null}
 
       {isSignup ? (
-        <p className="mt-3 text-center text-xs text-[#98A2B3]">
+        <p className="mt-3 text-center text-xs text-ink-muted">
           가입하면{" "}
           <Link href="/privacy?from=signup" className="underline underline-offset-2">
             개인정보 처리방침
@@ -215,11 +215,11 @@ export function AuthForm({ mode, next }: { mode: Mode; next: string | null }) {
           에 동의하는 것으로 봅니다.
         </p>
       ) : (
-        <p className="mt-6 text-center text-sm text-[#98A2B3]">
+        <p className="mt-6 text-center text-sm text-ink-muted">
           아직 계정이 없나요?{" "}
           <Link
             href={next ? `/signup?next=${encodeURIComponent(next)}` : "/signup"}
-            className="text-[#F2F4F7] underline underline-offset-2"
+            className="text-ink underline underline-offset-2"
           >
             가입하기 →
           </Link>
@@ -227,26 +227,26 @@ export function AuthForm({ mode, next }: { mode: Mode; next: string | null }) {
       )}
 
       {/* ── 되돌아갈 길 (§14.4-7) ──────────────────────────────────────── */}
-      <div className="mt-8 border-t border-white/10 pt-5">
-        <p className="text-center text-xs leading-relaxed break-keep text-[#98A2B3]">
+      <div className="mt-8 border-t border-line pt-5">
+        <p className="text-center text-xs leading-relaxed break-keep text-ink-muted">
           로그인은 스탬프와 여행 기록에만 필요해요.
           <br />
           다트는 그냥 던지면 돼요.
         </p>
         <Link
           href="/"
-          className="mt-3 flex min-h-12 items-center justify-center text-sm text-[#F2F4F7] underline underline-offset-2"
+          className="mt-3 flex min-h-12 items-center justify-center text-sm text-ink underline underline-offset-2"
         >
           그냥 둘러보기 →
         </Link>
       </div>
 
       {isSignup ? (
-        <p className="mt-6 text-center text-sm text-[#98A2B3]">
+        <p className="mt-6 text-center text-sm text-ink-muted">
           이미 계정이 있나요?{" "}
           <Link
             href={next ? `/login?next=${encodeURIComponent(next)}` : "/login"}
-            className="text-[#F2F4F7] underline underline-offset-2"
+            className="text-ink underline underline-offset-2"
           >
             로그인 →
           </Link>

@@ -30,7 +30,7 @@ export const metadata = {
 
 export default function SubmitPage() {
   return (
-    <main className="mx-auto min-h-screen w-full max-w-lg bg-[#0E1116] text-[#F2F4F7]">
+    <main className="mx-auto min-h-screen w-full max-w-lg bg-canvas text-ink">
       {/* 상단 바 (§7.1) — 뒤로는 직전 화면, 기록이 없으면 S1 (§7.5) */}
       <header className="flex h-14 items-center gap-1 px-2">
         <BackLink />

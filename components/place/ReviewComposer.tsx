@@ -295,11 +295,11 @@ export function ReviewComposer({ placeId }: { placeId: string }) {
       {/* ── 여는 버튼 (§6.1 맨 아래 칸 · §6.3-10 "항상 표시") ───────────────
           이미 남긴 기기에는 버튼 대신 안내가 그 자리에 들어갑니다. */}
       {standing.exists && standing.hasContent ? (
-        <div className="mt-4 rounded-2xl border border-white/10 bg-[#171B22] p-4 text-center">
-          <p className="text-sm break-keep text-[#F2F4F7]">
+        <div className="mt-4 rounded-2xl border border-line bg-surface p-4 text-center">
+          <p className="text-sm break-keep text-ink">
             {done ? "기록을 남겼어요. 고맙습니다." : "이미 다녀오셨다고 남기셨어요."}
           </p>
-          <p className="mt-1 text-xs break-keep text-[#98A2B3]">
+          <p className="mt-1 text-xs break-keep text-ink-muted">
             한 장소에는 한 번만 남길 수 있어요.
           </p>
         </div>
@@ -307,7 +307,7 @@ export function ReviewComposer({ placeId }: { placeId: string }) {
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="mt-4 flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border border-white/15 bg-[#171B22] text-base font-semibold text-[#F2F4F7]"
+          className="mt-4 flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border border-line bg-surface text-base font-semibold text-ink"
         >
           <span aria-hidden>✓</span> 다녀왔어요
         </button>
@@ -320,22 +320,22 @@ export function ReviewComposer({ placeId }: { placeId: string }) {
             type="button"
             aria-label="닫기"
             onClick={close}
-            className="absolute inset-0 bg-black/60"
+            className="absolute inset-0 bg-ink/50"
           />
 
           <div
             role="dialog"
             aria-modal="true"
             aria-label="다녀왔어요"
-            className="relative max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-t-3xl border-t border-white/10 bg-[#0E1116] px-5 pt-5 pb-8"
+            className="relative max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-t-3xl border-t border-line bg-canvas px-5 pt-5 pb-8"
           >
             <div className="flex items-center justify-between">
-              <h2 className="text-base font-bold text-[#F2F4F7]">다녀왔어요</h2>
+              <h2 className="text-base font-bold text-ink">다녀왔어요</h2>
               <button
                 type="button"
                 onClick={close}
                 aria-label="닫기"
-                className="flex h-11 w-11 items-center justify-center rounded-full text-lg text-[#98A2B3]"
+                className="flex h-11 w-11 items-center justify-center rounded-full text-lg text-ink-muted"
               >
                 ✕
               </button>
@@ -350,16 +350,16 @@ export function ReviewComposer({ placeId }: { placeId: string }) {
                   type="button"
                   disabled={standing.exists || visiting}
                   onClick={() => void markVisited()}
-                  className="mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-[#FF4D4D]/50 bg-[#FF4D4D]/10 text-sm font-semibold text-[#F2F4F7] disabled:border-white/10 disabled:bg-white/5 disabled:text-[#98A2B3]"
+                  className="mt-4 flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-brand/50 bg-brand/10 text-sm font-semibold text-ink disabled:border-line disabled:bg-line/50 disabled:text-ink-muted"
                 >
                   <span aria-hidden>✓</span>
                   {standing.exists ? "다녀온 곳" : visiting ? "기록하는 중…" : "다녀왔어요"}
                 </button>
                 {visitError ? (
-                  <p className="mt-2 text-sm break-keep text-[#FF9B9B]">{visitError}</p>
+                  <p className="mt-2 text-sm break-keep text-brand-deep">{visitError}</p>
                 ) : null}
                 {standing.exists ? (
-                  <p className="mt-2 text-center text-xs break-keep text-[#98A2B3]">
+                  <p className="mt-2 text-center text-xs break-keep text-ink-muted">
                     스탬프에 담겼어요. 한 줄은 나중에 덧붙일 수 있어요.
                   </p>
                 ) : null}
@@ -367,7 +367,7 @@ export function ReviewComposer({ placeId }: { placeId: string }) {
             ) : null}
 
             {/* ── 한 줄 (선택) ─────────────────────────────────────────── */}
-            <h3 className="mt-4 mb-2 text-sm font-semibold text-[#98A2B3]">한 줄 남기기 (선택)</h3>
+            <h3 className="mt-4 mb-2 text-sm font-semibold text-ink-muted">한 줄 남기기 (선택)</h3>
             <div className="relative">
               <input
                 type="text"
@@ -375,15 +375,15 @@ export function ReviewComposer({ placeId }: { placeId: string }) {
                 onChange={(e) => setBody(e.target.value.slice(0, BODY_MAX))}
                 maxLength={BODY_MAX}
                 placeholder="어땠는지 한 줄로"
-                className="min-h-12 w-full rounded-2xl border border-white/10 bg-[#171B22] px-4 pr-16 text-[#F2F4F7] placeholder:text-[#98A2B3]/60"
+                className="min-h-12 w-full rounded-2xl border border-line bg-surface px-4 pr-16 text-ink placeholder:text-ink-muted/60"
               />
-              <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-xs text-[#98A2B3]">
+              <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-xs text-ink-muted">
                 {body.length}/{BODY_MAX}
               </span>
             </div>
 
             {/* ── 사진 (선택, 1장) ─────────────────────────────────────── */}
-            <h3 className="mt-6 mb-2 text-sm font-semibold text-[#98A2B3]">사진 (선택, 1장)</h3>
+            <h3 className="mt-6 mb-2 text-sm font-semibold text-ink-muted">사진 (선택, 1장)</h3>
             <input
               ref={fileRef}
               type="file"
@@ -399,9 +399,9 @@ export function ReviewComposer({ placeId }: { placeId: string }) {
                 <img
                   src={photoPreview}
                   alt="남길 사진 미리보기"
-                  className="h-24 w-24 rounded-2xl border border-white/10 object-cover"
+                  className="h-24 w-24 rounded-2xl border border-line object-cover"
                 />
-                <div className="text-xs text-[#98A2B3]">
+                <div className="text-xs text-ink-muted">
                   <p>
                     {photo.width}×{photo.height}
                   </p>
@@ -411,7 +411,7 @@ export function ReviewComposer({ placeId }: { placeId: string }) {
                   <button
                     type="button"
                     onClick={clearPhoto}
-                    className="mt-2 min-h-9 rounded-xl border border-white/20 px-3 text-[#F2F4F7]"
+                    className="mt-2 min-h-9 rounded-xl border border-ink/20 px-3 text-ink"
                   >
                     사진 빼기
                   </button>
@@ -422,14 +422,14 @@ export function ReviewComposer({ placeId }: { placeId: string }) {
                 type="button"
                 onClick={() => fileRef.current?.click()}
                 disabled={photoBusy}
-                className="flex h-24 w-24 items-center justify-center rounded-2xl border border-dashed border-white/20 bg-[#171B22] text-2xl text-[#98A2B3] disabled:opacity-50"
+                className="flex h-24 w-24 items-center justify-center rounded-2xl border border-dashed border-ink/20 bg-surface text-2xl text-ink-muted disabled:opacity-50"
               >
                 {photoBusy ? "…" : "+"}
               </button>
             )}
 
             {photoError ? (
-              <p className="mt-2 text-sm break-keep text-[#FF9B9B]">{photoError}</p>
+              <p className="mt-2 text-sm break-keep text-brand-deep">{photoError}</p>
             ) : null}
 
             {/* ── 남기기 — 아무 입력 없이도 눌립니다 (§6.2) ─────────────── */}
@@ -437,22 +437,22 @@ export function ReviewComposer({ placeId }: { placeId: string }) {
               type="button"
               disabled={submitting || photoBusy}
               onClick={() => void submit()}
-              className="mt-8 min-h-14 w-full rounded-2xl bg-[#FF4D4D] text-base font-semibold text-white disabled:bg-white/10 disabled:text-[#98A2B3]"
+              className="mt-8 min-h-14 w-full rounded-2xl bg-brand-deep text-base font-semibold text-white disabled:bg-line disabled:text-ink-muted"
             >
               {submitting ? "남기는 중…" : "남기기"}
             </button>
 
             {/* ── 실패 (§6.4) — 시트는 그대로, 쓴 것도 그대로 ───────────── */}
             {phase.kind === "failed" ? (
-              <div className="mt-4 rounded-2xl border border-[#FF4D4D]/40 bg-[#FF4D4D]/10 p-4 text-center">
-                <p className="text-sm text-[#F2F4F7]">{phase.message}</p>
+              <div className="mt-4 rounded-2xl border border-brand/40 bg-brand/10 p-4 text-center">
+                <p className="text-sm text-ink">{phase.message}</p>
                 {phase.detail ? (
-                  <p className="mt-1 text-xs break-keep text-[#98A2B3]">{phase.detail}</p>
+                  <p className="mt-1 text-xs break-keep text-ink-muted">{phase.detail}</p>
                 ) : null}
                 <button
                   type="button"
                   onClick={() => void submit()}
-                  className="mt-3 min-h-11 rounded-2xl border border-white/20 px-5 text-sm text-[#F2F4F7]"
+                  className="mt-3 min-h-11 rounded-2xl border border-ink/20 px-5 text-sm text-ink"
                 >
                   다시 시도
                 </button>
@@ -460,7 +460,7 @@ export function ReviewComposer({ placeId }: { placeId: string }) {
             ) : null}
 
             {/* ── 원칙을 사용자에게 설명 (§6.2 아래 두 줄) ──────────────── */}
-            <p className="mt-5 text-center text-xs leading-relaxed break-keep text-[#98A2B3]">
+            <p className="mt-5 text-center text-xs leading-relaxed break-keep text-ink-muted">
               별점은 받지 않습니다.
               <br />
               숫자가 장소를 다시 가리기 때문이에요.
@@ -470,7 +470,7 @@ export function ReviewComposer({ placeId }: { placeId: string }) {
             {standing.signedIn ? null : (
               <Link
                 href={`/login?next=${encodeURIComponent(`/place/${placeId}`)}`}
-                className="mt-4 flex min-h-11 items-center justify-center text-xs break-keep text-[#98A2B3] underline underline-offset-2"
+                className="mt-4 flex min-h-11 items-center justify-center text-xs break-keep text-ink-muted underline underline-offset-2"
               >
                 로그인하면 다녀온 곳이 스탬프로 모여요 →
               </Link>

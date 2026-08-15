@@ -116,7 +116,7 @@ export function PhotoCarousel({
 
       {/* 저작권 표기 (④ §3.4 — 표기 의무가 있으면 캐러셀 하단에) */}
       {credits.length > 0 ? (
-        <p className="bg-[#0E1116] px-5 pt-2 text-[11px] text-[#98A2B3]">
+        <p className="bg-canvas px-5 pt-2 text-[11px] text-ink-muted">
           사진 제공 · {credits.join(" / ")}
         </p>
       ) : null}

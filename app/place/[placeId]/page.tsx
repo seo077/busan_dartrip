@@ -218,9 +218,9 @@ async function CourseSection({ place }: { place: PlaceDetail }) {
 /** 외부를 기다리는 동안의 자리 (§6.4 "로딩" — 기본 정보는 이미 떠 있습니다). */
 function BlockSkeleton() {
   return (
-    <div className="border-t border-white/10 px-5 py-6">
-      <div className="h-4 w-28 animate-pulse rounded bg-white/5" />
-      <div className="mt-3 h-16 w-full animate-pulse rounded-2xl bg-white/5" />
+    <div className="border-t border-line px-5 py-6">
+      <div className="h-4 w-28 animate-pulse rounded bg-line/50" />
+      <div className="mt-3 h-16 w-full animate-pulse rounded-2xl bg-line/50" />
     </div>
   );
 }
@@ -249,7 +249,7 @@ export default async function PlacePage({
         ? "아직 준비가 끝나지 않았어요. 잠시 후 다시 열어 주세요."
         : "장소를 불러오지 못했어요.";
     return (
-      <main className="mx-auto min-h-screen w-full max-w-lg bg-[#0E1116] text-[#F2F4F7]">
+      <main className="mx-auto min-h-screen w-full max-w-lg bg-canvas text-ink">
         <ResultNotice
           title={message}
           body="잠깐의 문제일 수 있어요. 다시 시도해 보시고, 그래도 안 되면 새로 던져 보세요."
@@ -268,8 +268,8 @@ export default async function PlacePage({
   const reviews: ReviewView[] = await loadPlaceReviews(place.id).catch(() => []);
 
   return (
-    <main className="mx-auto min-h-screen w-full max-w-lg bg-[#0E1116] text-[#F2F4F7]">
-      <header className="sticky top-0 z-20 flex h-14 items-center justify-between bg-[#0E1116]/85 px-2 backdrop-blur">
+    <main className="mx-auto min-h-screen w-full max-w-lg bg-canvas text-ink">
+      <header className="sticky top-0 z-20 flex h-14 items-center justify-between bg-canvas/85 px-2 backdrop-blur">
         <BackLink />
         <ShareButton
           title={`${place.name} — 부산 Dartrip`}

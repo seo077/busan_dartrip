@@ -24,7 +24,7 @@ export function BackLink() {
         if (typeof window !== "undefined" && window.history.length > 1) router.back();
         else router.push("/");
       }}
-      className="flex h-11 w-11 items-center justify-center rounded-full text-xl text-[#F2F4F7]"
+      className="flex h-11 w-11 items-center justify-center rounded-full text-xl text-ink"
     >
       <span aria-hidden>←</span>
     </button>

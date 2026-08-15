@@ -55,9 +55,9 @@ export function DataSources({ className = "" }: { className?: string }) {
   return (
     <footer
       id="sources"
-      className={`scroll-mt-16 border-t border-white/10 px-5 py-8 text-xs leading-relaxed text-[#98A2B3] ${className}`}
+      className={`scroll-mt-16 border-t border-line px-5 py-8 text-xs leading-relaxed text-ink-muted ${className}`}
     >
-      <h2 className="mb-2 text-sm font-semibold text-[#F2F4F7]">데이터 출처</h2>
+      <h2 className="mb-2 text-sm font-semibold text-ink">데이터 출처</h2>
       <p className="mb-2">본 서비스는 아래 기관이 제공하는 공공데이터를 활용합니다.</p>
       <ul className="mb-3 space-y-0.5">
         {DATA_SOURCES.map((source) => (

@@ -38,12 +38,12 @@ export default async function LoginPage({
   }
 
   return (
-    <main className="mx-auto min-h-screen w-full max-w-lg bg-[#0E1116] text-[#F2F4F7]">
+    <main className="mx-auto min-h-screen w-full max-w-lg bg-canvas text-ink">
       <header className="flex h-14 items-center gap-1 px-2">
         <Link
           href="/"
           aria-label="뒤로"
-          className="flex h-11 w-11 items-center justify-center rounded-full text-xl text-[#F2F4F7]"
+          className="flex h-11 w-11 items-center justify-center rounded-full text-xl text-ink"
         >
           <span aria-hidden>←</span>
         </Link>
@@ -55,12 +55,12 @@ export default async function LoginPage({
       ) : (
         /* §14.7 "설정 미완" — 다트는 계속 됩니다 */
         <section className="px-5 pb-12">
-          <p className="rounded-2xl border border-white/10 bg-[#171B22] p-4 text-sm leading-relaxed break-keep text-[#F2F4F7]">
+          <p className="rounded-2xl border border-line bg-surface p-4 text-sm leading-relaxed break-keep text-ink">
             로그인을 준비 중이에요.
           </p>
           <Link
             href="/"
-            className="mt-4 flex min-h-12 items-center justify-center text-sm text-[#F2F4F7] underline underline-offset-2"
+            className="mt-4 flex min-h-12 items-center justify-center text-sm text-ink underline underline-offset-2"
           >
             그냥 둘러보기 →
           </Link>

@@ -167,6 +167,8 @@ export interface FitBounds {
  * `setBounds` 에 넣는 여백(px).
  * 조준 범위(`lib/aim.ts` `AIM_INSET_PX` = 18)보다 넉넉해야 가장자리 구·군의 표식이
  * 조준 사각형 안에 들어옵니다. 표식이 그 밖으로 밀리면 그 구·군은 겨눌 수 없습니다.
+ *
+ * **실사용 확인함 (2026-08-16, `D-61-4`)** — `lib/aim.ts` 의 조준 값 넷과 한 묶음입니다.
  */
 const FIT_PADDING_PX = 28;
 
@@ -319,25 +321,25 @@ export function BusanMap({
   }, [state, applyCamera, report]);
 
   return (
-    <div className="relative isolate h-56 w-full overflow-hidden rounded-2xl border border-white/10 bg-[#171B22] sm:h-72">
+    <div className="relative isolate h-56 w-full overflow-hidden rounded-2xl border border-line bg-surface sm:h-72">
       <div ref={containerRef} className="h-full w-full" aria-hidden />
 
       {state !== "ready" ? (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-[#171B22] px-6 text-center">
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-surface px-6 text-center">
           {state === "loading" ? (
             <>
-              <div className="h-24 w-40 animate-pulse rounded-xl bg-white/5" />
-              <p className="text-xs text-[#98A2B3]">지도를 불러오는 중…</p>
+              <div className="h-24 w-40 animate-pulse rounded-xl bg-line/50" />
+              <p className="text-xs text-ink-muted">지도를 불러오는 중…</p>
             </>
           ) : (
             <>
               <div
                 aria-hidden
-                className="flex h-24 w-40 items-center justify-center rounded-xl bg-gradient-to-br from-[#0D2E3D] to-[#17677A] text-lg font-semibold tracking-[0.3em] text-white/70"
+                className="flex h-24 w-40 items-center justify-center rounded-xl bg-line text-lg font-semibold tracking-[0.3em] text-ink/60"
               >
                 부산
               </div>
-              <p className="text-xs text-[#98A2B3]">
+              <p className="text-xs text-ink-muted">
                 지도를 불러오지 못했습니다. 다트는 그대로 던질 수 있어요.
               </p>
             </>
@@ -346,7 +348,7 @@ export function BusanMap({
       ) : null}
 
       {state === "ready" && focus ? (
-        <div className="pointer-events-none absolute left-3 top-3 rounded-full bg-black/55 px-3 py-1 text-xs text-white">
+        <div className="pointer-events-none absolute left-3 top-3 rounded-full bg-ink/70 px-3 py-1 text-xs text-canvas">
           {focus.name}
         </div>
       ) : null}

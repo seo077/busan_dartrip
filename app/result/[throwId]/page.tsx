@@ -117,7 +117,7 @@ export default async function ResultPage({
         ? "아직 준비가 끝나지 않았어요. 잠시 후 다시 열어 주세요."
         : "결과를 불러오지 못했어요.";
     return (
-      <main className="mx-auto min-h-screen w-full max-w-lg bg-[#0E1116] text-[#F2F4F7]">
+      <main className="mx-auto min-h-screen w-full max-w-lg bg-canvas text-ink">
         <ResultNotice
           title={message}
           body="잠깐의 문제일 수 있어요. 다시 시도해 보시고, 그래도 안 되면 새로 던져 보세요."
@@ -139,7 +139,7 @@ export default async function ResultPage({
   const aimed = query.aimed === "1" && scope !== null && scope === sigungu.code;
 
   return (
-    <main className="mx-auto min-h-screen w-full max-w-lg bg-[#0E1116] text-[#F2F4F7]">
+    <main className="mx-auto min-h-screen w-full max-w-lg bg-canvas text-ink">
       <ResultHero
         place={place}
         sigunguName={sigungu.name}

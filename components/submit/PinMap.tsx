@@ -295,32 +295,32 @@ export function PinMap({
           placeholder="장소 이름이나 주소로 찾기"
           aria-label="장소 이름이나 주소로 찾기"
           maxLength={80}
-          className="min-h-12 w-full rounded-xl border border-white/10 bg-[#171B22] px-4 text-sm text-[#F2F4F7] placeholder:text-[#98A2B3]/60"
+          className="min-h-12 w-full rounded-xl border border-line bg-surface px-4 text-sm text-ink placeholder:text-ink-muted/60"
         />
         <button
           type="button"
           onClick={() => void search()}
           disabled={searching || query.trim() === ""}
-          className="min-h-12 shrink-0 rounded-xl bg-white/10 px-4 text-sm text-[#F2F4F7] disabled:opacity-40"
+          className="min-h-12 shrink-0 rounded-xl bg-line px-4 text-sm text-ink disabled:opacity-40"
         >
           {searching ? "찾는 중" : "찾기"}
         </button>
       </div>
 
-      {searchError ? <p className="mt-2 text-xs text-[#FF9B9B]">{searchError}</p> : null}
+      {searchError ? <p className="mt-2 text-xs text-brand-deep">{searchError}</p> : null}
 
       {hits && hits.length > 0 ? (
-        <ul className="mt-2 space-y-1 rounded-xl border border-white/10 bg-[#171B22] p-1">
+        <ul className="mt-2 space-y-1 rounded-xl border border-line bg-surface p-1">
           {hits.map((hit) => (
             <li key={`${hit.label}-${hit.lat}-${hit.lng}`}>
               <button
                 type="button"
                 onClick={() => pick(hit)}
-                className="w-full rounded-lg px-3 py-2 text-left text-sm text-[#F2F4F7] hover:bg-white/5"
+                className="w-full rounded-lg px-3 py-2 text-left text-sm text-ink hover:bg-line/50"
               >
                 <span className="block">{hit.label}</span>
                 {hit.detail ? (
-                  <span className="block text-xs text-[#98A2B3]">{hit.detail}</span>
+                  <span className="block text-xs text-ink-muted">{hit.detail}</span>
                 ) : null}
               </button>
             </li>
@@ -334,12 +334,12 @@ export function PinMap({
     return (
       <div>
         {searchBox}
-        <div className="rounded-2xl border border-white/10 bg-[#171B22] p-4">
-          <p className="text-sm break-keep text-[#98A2B3]">
+        <div className="rounded-2xl border border-line bg-surface p-4">
+          <p className="text-sm break-keep text-ink-muted">
             지도를 불러오지 못했어요. 위 검색으로 위치를 정할 수 있습니다.
           </p>
           {picked ? (
-            <p className="mt-3 rounded-xl bg-white/5 px-3 py-2 text-sm text-[#F2F4F7]">
+            <p className="mt-3 rounded-xl bg-line/50 px-3 py-2 text-sm text-ink">
               선택: {picked.label}
             </p>
           ) : null}
@@ -351,16 +351,27 @@ export function PinMap({
   return (
     <div>
       {searchBox}
+      {/*
+        쌓임 순서 (2026-08-16 A 확인 — 핀 한가운데를 짚으면 **지도 레이어가 잡혔습니다**).
+
+        카카오 SDK 는 지도 안쪽 레이어에 `z-index: 1·2` 를 붙입니다. 핀과 안내 문구는 그 레이어와
+        **같은 상자 안의 형제**이면서 `z-index` 가 없어(auto = 0) 지도 밑에 깔려 있었습니다.
+        핀은 이 화면에서 좌표를 확정하는 수단 그 자체라(§7.1) 보이지 않으면 화면이 성립하지
+        않습니다. 그래서 두 겹을 함께 둡니다.
+          · `isolate` — SDK 의 z 값이 이 상자 밖(검색 결과 목록 등)까지 올라가지 않게 가둡니다.
+            `components/home/BusanMap.tsx` 가 같은 이유로 이미 걸어 둔 처리입니다.
+          · 핀·안내 문구에 `z-10` — 상자 **안에서** SDK 의 1·2 보다 위에 서게 합니다.
+      */}
       <div
-        className={`relative h-60 w-full overflow-hidden rounded-2xl border bg-[#171B22] sm:h-72 ${
-          outsideBusan ? "border-[#FF4D4D]/60" : "border-white/10"
+        className={`relative isolate h-60 w-full overflow-hidden rounded-2xl border bg-surface sm:h-72 ${
+          outsideBusan ? "border-brand/60" : "border-line"
         }`}
       >
         <div ref={containerRef} className="h-full w-full" />
 
         {state === "loading" ? (
-          <div className="absolute inset-0 flex items-center justify-center bg-[#171B22]">
-            <div className="h-24 w-40 animate-pulse rounded-xl bg-white/5" />
+          <div className="absolute inset-0 flex items-center justify-center bg-surface">
+            <div className="h-24 w-40 animate-pulse rounded-xl bg-line/50" />
           </div>
         ) : null}
 
@@ -368,7 +379,7 @@ export function PinMap({
         {state === "ready" ? (
           <div
             aria-hidden
-            className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-full"
+            className="pointer-events-none absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-full"
           >
             <span
               className={`block text-3xl drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)] transition-transform ${
@@ -381,7 +392,7 @@ export function PinMap({
         ) : null}
 
         {state === "ready" ? (
-          <p className="pointer-events-none absolute inset-x-0 bottom-2 text-center text-[11px] text-white/70">
+          <p className="pointer-events-none absolute inset-x-0 bottom-2 z-10 text-center text-[11px] text-ink/70 [text-shadow:0_1px_3px_rgba(255,248,240,0.95)]">
             {picked ? "핀을 옮겨 더 정확히 맞출 수 있어요" : "지도를 움직여 핀을 장소에 맞춰 주세요"}
           </p>
         ) : null}

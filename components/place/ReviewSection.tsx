@@ -35,22 +35,22 @@ export function ReviewSection({
   reviews: ReviewView[];
 }) {
   return (
-    <section className="border-t border-white/10 px-5 py-6">
-      <h2 className="mb-3 text-sm font-semibold text-[#98A2B3]">
+    <section className="border-t border-line px-5 py-6">
+      <h2 className="mb-3 text-sm font-semibold text-ink-muted">
         다녀온 사람들{reviews.length > 0 ? ` (${reviews.length})` : ""}
       </h2>
 
       {reviews.length === 0 ? (
-        <div className="rounded-2xl border border-white/10 bg-[#171B22] p-6 text-center">
-          <p className="text-sm break-keep text-[#F2F4F7]">아직 기록이 없어요.</p>
-          <p className="mt-1 text-sm break-keep text-[#98A2B3]">첫 기록을 남겨보세요.</p>
+        <div className="rounded-2xl border border-line bg-surface p-6 text-center">
+          <p className="text-sm break-keep text-ink">아직 기록이 없어요.</p>
+          <p className="mt-1 text-sm break-keep text-ink-muted">첫 기록을 남겨보세요.</p>
         </div>
       ) : (
         <ul className="space-y-2">
           {reviews.map((review) => (
             <li
               key={review.id}
-              className="flex gap-3 rounded-2xl border border-white/10 bg-[#171B22] p-4"
+              className="flex gap-3 rounded-2xl border border-line bg-surface p-4"
             >
               {review.photoPath ? (
                 // Storage 공개 URL 입니다. 후기 사진은 작게 한 장뿐이라 최적화를 거치지 않습니다.
@@ -59,17 +59,17 @@ export function ReviewSection({
                   src={review.photoPath}
                   alt=""
                   loading="lazy"
-                  className="h-16 w-16 shrink-0 rounded-xl border border-white/10 object-cover"
+                  className="h-16 w-16 shrink-0 rounded-xl border border-line object-cover"
                 />
               ) : null}
 
               <div className="min-w-0 flex-1">
                 {review.body ? (
-                  <p className="text-sm leading-relaxed break-keep text-[#F2F4F7]">{review.body}</p>
+                  <p className="text-sm leading-relaxed break-keep text-ink">{review.body}</p>
                 ) : (
-                  <p className="text-sm text-[#98A2B3]">다녀왔어요</p>
+                  <p className="text-sm text-ink-muted">다녀왔어요</p>
                 )}
-                <p className="mt-2 text-xs text-[#98A2B3]">{formatDate(review.createdAt)}</p>
+                <p className="mt-2 text-xs text-ink-muted">{formatDate(review.createdAt)}</p>
               </div>
             </li>
           ))}

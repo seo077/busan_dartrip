@@ -133,17 +133,17 @@ export function DartThrowZone({
           disabled={!enabled || busy}
           className={`flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl text-base font-semibold transition ${
             enabled && !busy
-              ? "bg-[#FF4D4D] text-white"
-              : "cursor-not-allowed bg-white/10 text-[#98A2B3]"
+              ? "bg-brand-deep text-white"
+              : "cursor-not-allowed bg-line text-ink-muted"
           }`}
         >
           <span aria-hidden>🎯</span>
           {busy ? "던지는 중…" : "다트 던지기"}
         </button>
-        <p aria-live="polite" className="mt-3 min-h-6 text-center text-sm text-[#F2F4F7]">
+        <p aria-live="polite" className="mt-3 min-h-6 text-center text-sm text-ink">
           {stage === "idle" ? "" : caption}
         </p>
-        <p className="min-h-5 text-center text-xs text-[#98A2B3]">
+        <p className="min-h-5 text-center text-xs text-ink-muted">
           {stage === "district"
             ? PRINCIPLE_UNIFORM
             : `${PRINCIPLE_UNIFORM}으로 한 곳을 뽑아요`}
@@ -159,16 +159,16 @@ export function DartThrowZone({
         aria-live="polite"
         className={`min-h-7 text-center text-base font-semibold break-keep ${
           stage === "blocked"
-            ? "text-[#FFC9C9]"
+            ? "text-ink-muted"
             : stage === "district" || stage === "pinned"
-              ? "text-[#FF9B9B]"
-              : "text-[#F2F4F7]"
+              ? "text-brand-deep"
+              : "text-ink"
         }`}
       >
         {caption}
       </p>
 
-      <p className="min-h-5 text-center text-xs break-keep text-[#98A2B3]">{subCaption}</p>
+      <p className="min-h-5 text-center text-xs break-keep text-ink-muted">{subCaption}</p>
 
       {/* 드래그가 어려운 경우를 위한 빠져나갈 길 — 헛던졌을 때만 조용히 나옵니다. */}
       {stage === "idle" && hint ? (
@@ -176,7 +176,7 @@ export function DartThrowZone({
           type="button"
           onClick={() => sequence.throwWithDefaultPower(DEFAULT_POWER)}
           disabled={!enabled || busy}
-          className="mt-1 text-xs text-[#98A2B3] underline underline-offset-2 disabled:opacity-40"
+          className="mt-1 text-xs text-ink-muted underline underline-offset-2 disabled:opacity-40"
         >
           조준 없이 버튼으로 던지기
         </button>
@@ -184,7 +184,7 @@ export function DartThrowZone({
 
       {/* 힘 게이지 (§4.2 — 당길수록 차오르는 시각 피드백) */}
       <div
-        className="mt-3 h-1.5 w-44 rounded-full bg-white/10 transition-opacity duration-150"
+        className="mt-3 h-1.5 w-44 rounded-full bg-line transition-opacity duration-150"
         style={{ opacity: stage === "pulling" ? 1 : 0 }}
         aria-hidden
       >
@@ -193,12 +193,12 @@ export function DartThrowZone({
             className="h-full rounded-full"
             style={{
               width: `${Math.round(power * 100)}%`,
-              background: strongEnough ? "#FF4D4D" : "rgba(255,255,255,0.35)",
+              background: strongEnough ? "#E85D75" : "rgba(46,42,51,0.28)",
             }}
           />
           {/* 여기를 넘겨야 날아갑니다 */}
           <div
-            className="absolute -top-1 h-3.5 w-px bg-white/45"
+            className="absolute -top-1 h-3.5 w-px bg-ink/35"
             style={{ left: `${MIN_THROW_POWER * 100}%` }}
           />
         </div>
@@ -214,7 +214,7 @@ export function DartThrowZone({
           return (
             <div
               key={i}
-              className="h-2.5 w-2.5 rotate-45 border-t-2 border-l-2 border-[#FF4D4D] transition-opacity duration-100"
+              className="h-2.5 w-2.5 rotate-45 border-t-2 border-l-2 border-brand transition-opacity duration-100"
               style={{ opacity: stage === "pulling" ? (lit ? 0.9 - i * 0.18 : 0.12) : 0.08 }}
             />
           );
@@ -237,7 +237,7 @@ export function DartThrowZone({
         onPointerUp={sequence.onPointerUp}
         onPointerCancel={sequence.onPointerCancel}
         onKeyDown={sequence.onKeyDown}
-        className="mt-1 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-[#FF4D4D]"
+        className="mt-1 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-brand"
         style={{
           touchAction: "none",
           userSelect: "none",

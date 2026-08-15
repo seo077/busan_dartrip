@@ -26,7 +26,7 @@ export function DartGlyph({
         width: w,
         height: w,
         position: "relative",
-        filter: glow ? "drop-shadow(0 2px 10px rgba(255, 77, 77, 0.55))" : undefined,
+        filter: glow ? "drop-shadow(0 2px 10px rgba(232, 93, 117, 0.55))" : undefined,
       }}
     >
       {/* 촉 */}
@@ -40,7 +40,7 @@ export function DartGlyph({
           height: 0,
           borderLeft: `${w * 0.1}px solid transparent`,
           borderRight: `${w * 0.1}px solid transparent`,
-          borderBottom: `${w * 0.3}px solid #FF4D4D`,
+          borderBottom: `${w * 0.3}px solid #E85D75`,
         }}
       />
       {/* 대 */}
@@ -53,7 +53,8 @@ export function DartGlyph({
           width: w * 0.11,
           height: w * 0.42,
           borderRadius: w * 0.06,
-          background: "linear-gradient(180deg, #F2F4F7 0%, #8A93A5 100%)",
+          // 대는 밝은 바탕(`D-61-3`) 위에 놓입니다 — 옛 은색은 바탕에 묻혀 사라집니다.
+          background: "linear-gradient(180deg, #6B6472 0%, #2E2A33 100%)",
         }}
       />
       {/* 날개 */}
@@ -65,7 +66,7 @@ export function DartGlyph({
           transform: "translateX(-50%)",
           width: w * 0.46,
           height: w * 0.34,
-          background: "linear-gradient(180deg, #FF8A8A 0%, #FF4D4D 100%)",
+          background: "linear-gradient(180deg, #F49AA9 0%, #E85D75 100%)",
           clipPath: "polygon(50% 0%, 100% 100%, 50% 74%, 0% 100%)",
         }}
       />

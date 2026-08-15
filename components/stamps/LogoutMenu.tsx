@@ -37,7 +37,7 @@ export function LogoutMenu() {
         onClick={() => setOpen((v) => !v)}
         aria-label="메뉴"
         aria-expanded={open}
-        className="flex h-11 w-11 items-center justify-center rounded-full text-lg text-[#98A2B3]"
+        className="flex h-11 w-11 items-center justify-center rounded-full text-lg text-ink-muted"
       >
         ⋮
       </button>
@@ -51,12 +51,12 @@ export function LogoutMenu() {
             onClick={() => setOpen(false)}
             className="fixed inset-0 z-10 cursor-default"
           />
-          <div className="absolute right-0 z-20 mt-1 w-36 overflow-hidden rounded-2xl border border-white/10 bg-[#171B22]">
+          <div className="absolute right-0 z-20 mt-1 w-36 overflow-hidden rounded-2xl border border-line bg-surface">
             <button
               type="button"
               disabled={busy}
               onClick={() => void logout()}
-              className="min-h-12 w-full px-4 text-left text-sm text-[#F2F4F7] disabled:text-[#98A2B3]"
+              className="min-h-12 w-full px-4 text-left text-sm text-ink disabled:text-ink-muted"
             >
               {busy ? "나가는 중…" : "로그아웃"}
             </button>

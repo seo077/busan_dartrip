@@ -1,23 +1,61 @@
 @import "tailwindcss";
 
 /*
- * 색·글꼴은 잠정값입니다. 디자인 토큰 확정은 구간 ⑦(반응형·디자인 정리) 작업입니다.
+ * 색 팔레트 「감천」 — 감천문화마을의 색동 집에서 뽑은 값입니다 (`D-61-1`).
+ *
+ * 값을 화면에 직접 적지 않고 **여기 한자리에 모아 토큰으로** 둡니다(`D-61-1` "토큰으로 둘 것").
+ * 구간 ⑦ 디자인 정련이 뒤에 또 오므로, 그때 이 파일만 고치면 전 화면이 함께 움직입니다.
+ *
+ * 화면은 **밝은 쪽으로 고정**입니다(`D-61-3`). `prefers-color-scheme` 분기를 두지 않고,
+ * `color-scheme: light` 로 **브라우저 기본 폼 컨트롤까지** 밝은 쪽에 묶습니다 — CSS 블록만
+ * 지우면 입력창·선택창만 OS 다크를 따라가 어둡게 남는 경로가 있습니다.
  */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: light;
+
+  /* ── 팔레트 원값 (`D-61-1` 9색) ─────────────────────────────────────────── */
+  --canvas: #fff8f0; /* 바탕 */
+  --ink: #2e2a33; /* 글자 */
+  --surface: #ffffff; /* 면 — 카드·패널 */
+  --line: #f0e3d6; /* 테두리 */
+  --theme-food: #f4826b; /* 식도락 */
+  --theme-nature: #7fbf9b; /* 자연 */
+  --theme-culture: #f2c14e; /* 문화·예술 */
+  --theme-activity: #6fa8dc; /* 액티비티 */
+  --brand: #e85d75; /* 포인트 — 다트·주요 행동 */
+
+  /*
+   * ── 파생값 2개 ────────────────────────────────────────────────────────────
+   * 팔레트에 없는 자리를 메우려고 **새 색을 들이지 않고** 원값에서 뽑았습니다.
+   *   · --ink-muted  = 글자를 옅게 한 값. 보조 설명 글자 자리 (바탕 대비 5.4:1)
+   *   · --brand-deep = 포인트를 짙게 한 값. 파스텔 위에서는 흰 글자가 먹지 않으므로
+   *                    **채운 버튼 바탕**과 **작은 경고 글자**만 이 값을 씁니다
+   *                    (흰 글자 대비 5.4:1 / 바탕 위 글자 대비 5.1:1).
+   * 대비 수치는 계산 근거이며 충족 여부 판정은 이 파일의 몫이 아닙니다.
+   */
+  --ink-muted: #6b6472;
+  --brand-deep: #c2334d;
+
+  /* 기존 이름 유지 — body 와 옛 사용처가 이 둘을 봅니다 */
+  --background: var(--canvas);
+  --foreground: var(--ink);
 }
 
 @theme inline {
+  --color-canvas: var(--canvas);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-surface: var(--surface);
+  --color-line: var(--line);
+  --color-brand: var(--brand);
+  --color-brand-deep: var(--brand-deep);
+  --color-food: var(--theme-food);
+  --color-nature: var(--theme-nature);
+  --color-culture: var(--theme-culture);
+  --color-activity: var(--theme-activity);
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0f1115;
-    --foreground: #ededed;
-  }
 }
 
 /*

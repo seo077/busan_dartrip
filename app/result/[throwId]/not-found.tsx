@@ -16,7 +16,7 @@ import { ResultNotice } from "@/components/result/ResultNotice";
 
 export default function ResultNotFound() {
   return (
-    <main className="mx-auto min-h-screen w-full max-w-lg bg-[#0E1116] text-[#F2F4F7]">
+    <main className="mx-auto min-h-screen w-full max-w-lg bg-canvas text-ink">
       <ResultNotice
         title="이 다트 결과는 더 이상 볼 수 없어요"
         body="공유된 결과는 30일 동안만 남아 있어요. 대신 직접 한 번 던져 보시겠어요?"

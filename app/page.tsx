@@ -48,7 +48,7 @@ export default async function Home({
   const user = await readCurrentUser();
 
   return (
-    <main className="mx-auto min-h-screen w-full max-w-lg bg-[#0E1116] text-[#F2F4F7]">
+    <main className="mx-auto min-h-screen w-full max-w-lg bg-canvas text-ink">
       {/* 상단 바 (§2.1 · §3.2-1) — ⓘ → S6 정보 (§3.4 전이표) · 👤 → S7/S8 (§14.5) */}
       <header className="flex h-14 items-center justify-between px-5">
         <h1 className="text-lg font-bold">부산 Dartrip</h1>
@@ -56,14 +56,14 @@ export default async function Home({
           <Link
             href={user ? "/stamps" : "/login"}
             aria-label={user ? "내 스탬프" : "로그인"}
-            className="flex h-11 w-11 items-center justify-center rounded-full text-lg text-[#98A2B3]"
+            className="flex h-11 w-11 items-center justify-center rounded-full text-lg text-ink-muted"
           >
             👤
           </Link>
           <Link
             href="/about"
             aria-label="정보"
-            className="flex h-11 w-11 items-center justify-center rounded-full text-lg text-[#98A2B3]"
+            className="flex h-11 w-11 items-center justify-center rounded-full text-lg text-ink-muted"
           >
             ⓘ
           </Link>

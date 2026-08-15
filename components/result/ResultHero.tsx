@@ -36,7 +36,7 @@ function directionsHref(place: PlaceView): string {
 
 function Badge({ children }: { children: React.ReactNode }) {
   return (
-    <span className="rounded-full bg-black/45 px-3 py-1 text-xs text-[#F2F4F7] backdrop-blur-sm">
+    <span className="rounded-full border border-line bg-surface/85 px-3 py-1 text-xs text-ink backdrop-blur-sm">
       {children}
     </span>
   );
@@ -67,10 +67,19 @@ export function ResultHero({
     >
       {place.image ? <HeroImage src={place.image} /> : null}
 
-      {/* 위아래 그라데이션 — 사진 위에서도 글씨가 읽히게 (§5.1) */}
+      {/*
+        위아래 그라데이션 — 사진 위에서도 글씨가 읽히게 (§5.1).
+        밝은 화면 고정(`D-61-3`) 뒤로는 **바탕색으로 덮습니다.** 위는 상단 바 뒤, 아래는 글자
+        블록 뒤가 바탕색이 되고 가운데만 사진이 그대로 보입니다. 글자는 어두운 쪽에 두므로
+        (`D-61-1` "색 면 위의 글자는 어두운 쪽으로") 덮는 쪽이 밝아야 합니다.
+      */}
       <div
         aria-hidden
-        className="absolute inset-0 bg-gradient-to-b from-black/55 via-black/10 to-[#0E1116]"
+        className="absolute inset-0"
+        style={{
+          background:
+            "linear-gradient(to bottom, rgba(255,248,240,0.88) 0%, rgba(255,248,240,0) 26%, rgba(255,248,240,0) 44%, rgba(255,248,240,0.94) 72%, #FFF8F0 100%)",
+        }}
       />
 
       {/* 히어로 탭 → S4 (§5.5). 글씨·버튼 블록보다 아래에 깔립니다 */}
@@ -85,7 +94,7 @@ export function ResultHero({
         <Link
           href="/"
           aria-label="처음으로"
-          className="flex h-11 w-11 items-center justify-center rounded-full text-xl text-[#F2F4F7]"
+          className="flex h-11 w-11 items-center justify-center rounded-full text-xl text-ink"
         >
           ←
         </Link>
@@ -107,7 +116,7 @@ export function ResultHero({
 
         {/* 장소명 — 사진이 없을 때는 더 크게 두어 그 자체가 화면이 되게 합니다 (§5.4) */}
         <h1
-          className={`font-bold break-keep text-[#F2F4F7] ${
+          className={`font-bold break-keep text-ink ${
             place.image ? "text-3xl leading-tight" : "text-4xl leading-snug"
           }`}
         >
@@ -118,7 +127,7 @@ export function ResultHero({
             </span>
           </Link>
         </h1>
-        <p className="mt-2 text-base break-keep text-[#F2F4F7]/85">
+        <p className="mt-2 text-base break-keep text-ink/85">
           {aimed ? (
             <>
               <span aria-hidden className="mr-1">
@@ -131,7 +140,7 @@ export function ResultHero({
           )}
         </p>
         {place.address ? (
-          <p className="mt-1 text-sm break-keep text-[#98A2B3]">{place.address}</p>
+          <p className="mt-1 text-sm break-keep text-ink-muted">{place.address}</p>
         ) : null}
 
         {/* 액션 (§5.3-5·6) */}
@@ -140,13 +149,13 @@ export function ResultHero({
             href={directionsHref(place)}
             target="_blank"
             rel="noreferrer noopener"
-            className="flex min-h-12 items-center justify-center rounded-2xl border border-white/20 bg-black/40 text-sm font-semibold text-[#F2F4F7] backdrop-blur-sm"
+            className="flex min-h-12 items-center justify-center rounded-2xl border border-ink/20 bg-surface/85 text-sm font-semibold text-ink backdrop-blur-sm"
           >
             🧭 길찾기
           </a>
           <Link
             href={rethrowHref}
-            className="flex min-h-12 items-center justify-center rounded-2xl bg-[#FF4D4D] text-sm font-semibold text-white"
+            className="flex min-h-12 items-center justify-center rounded-2xl bg-brand-deep text-sm font-semibold text-white"
           >
             🎯 다시 던지기
           </Link>
@@ -156,7 +165,7 @@ export function ResultHero({
         {nearbyCount > 0 ? (
           <a
             href="#nearby"
-            className="mt-6 block text-center text-sm text-[#98A2B3]"
+            className="mt-6 block text-center text-sm text-ink-muted"
           >
             <span aria-hidden>⌄</span> 이 근처 {nearbyCount}곳
           </a>
