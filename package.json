@@ -9,6 +9,7 @@
     "lint": "eslint",
     "pool:matrix": "tsx scripts/report/pool-matrix.ts",
     "probe:sources": "tsx scripts/report/source-probe.ts",
+    "report:lang": "tsx scripts/report/lang-coverage.ts",
     "backfill:sigungu": "tsx scripts/backfill/01-sigungu.ts",
     "backfill:theme-map": "tsx scripts/backfill/02-theme-map.ts",
     "backfill:tourapi": "tsx scripts/backfill/03-tourapi.ts",
