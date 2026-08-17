@@ -37,10 +37,27 @@
  * 고치면 됩니다.
  *
  * 외부 의존이 없는 정적 문서입니다 (§17.3 — 상태가 "정상" 하나뿐).
+ *
+ * 하단 데이터 출처 표기 (§2.1 · §17.6 — 2026-08-17 신설)
+ * ------------------------------------------------------
+ * ② §2.1이 *"데이터 출처 표기는 전 화면 공통이며 예외가 없습니다"* 라고 못박은 규약이
+ * **이 화면에만 걸리지 않고 있었습니다.** 규약은 r6에서 섰고 이 화면은 그보다 뒤인 r7
+ * 신설이라, **규칙이 자기보다 나중에 생긴 화면을 붙잡지 못한 자리**입니다. 규약을 고치지
+ * 않고 화면을 규약에 맞추는 쪽으로 닫았습니다(`D-64-1`).
+ *
+ * 예외로 두지 않은 이유 — **공공누리 출처표시는 화면 단위 의무**이고, 표기는 많을수록
+ * 안전한 쪽입니다. 이 화면이 공공데이터를 직접 그리지 않는다는 사실은 예외의 근거가 되기에
+ * 약합니다(같은 논리면 `S7` 로그인 화면도 예외여야 하는데 거기에는 붙어 있습니다).
+ *
+ * 같은 일이 다음 화면에서 다시 나지 않게 하는 자리는 셋입니다 —
+ * `ARCHITECTURE.md` §부록 규칙 ㉮ 표의 「화면」 행 · ② §2.1 · `npm run check:sources`
+ * (`scripts/report/screen-sources.ts` — 화면 파일과 표기 부착 여부를 대조해 줍니다).
  */
 
 import Link from "next/link";
 import type { Metadata } from "next";
+
+import { DataSources } from "@/components/DataSources";
 
 export const metadata: Metadata = {
   title: "개인정보 처리방침 — 부산 Dartrip",
@@ -228,6 +245,8 @@ export default async function PrivacyPage({
       <Article title="10. 시행일">
         <p>본 방침은 {EFFECTIVE_DATE}부터 적용합니다.</p>
       </Article>
+
+      <DataSources />
     </main>
   );
 }

@@ -7,6 +7,7 @@
     "build": "next build --turbopack",
     "start": "next start",
     "lint": "eslint",
+    "check:sources": "tsx scripts/report/screen-sources.ts",
     "pool:matrix": "tsx scripts/report/pool-matrix.ts",
     "probe:sources": "tsx scripts/report/source-probe.ts",
     "report:lang": "tsx scripts/report/lang-coverage.ts",

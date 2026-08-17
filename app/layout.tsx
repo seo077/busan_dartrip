@@ -41,6 +41,15 @@ export const viewport: Viewport = {
  * 템플릿 기본값(next/font/google)은 빌드 시점에 외부 요청이 필요하고, 한글 본문에는
  * 어차피 적용되지 않습니다. 디자인 토큰 확정은 구간 ⑦ 작업입니다.
  */
+/**
+ * 서비스워커에 실어 보내는 배포 식별값 (`X-52` 대응 — 2026-08-17).
+ *
+ * Vercel 이 빌드 때 넣어 주는 커밋 해시 앞 7자입니다(`lib/version.ts` 와 같은 출처).
+ * 없으면 `dev` — 로컬 빌드에서는 서비스워커를 등록하지 않으므로 쓰이지 않습니다.
+ * 이 값이 `/sw.js?v=…` 로 나가고, `public/sw.js` 가 그것으로 **캐시 이름**을 만듭니다.
+ */
+const BUILD = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? "dev";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -50,7 +59,7 @@ export default function RootLayout({
     <html lang="ko">
       <body className="antialiased">
         {children}
-        <ServiceWorkerRegistrar />
+        <ServiceWorkerRegistrar build={BUILD} />
       </body>
     </html>
   );
