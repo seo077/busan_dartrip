@@ -37,12 +37,21 @@ const KAKAO_ORIGINS = [
   "https://*.kakao.com",
 ].join(" ");
 
-/** 강제로 거는 최소 정책 — 어느 지시어도 스크립트·이미지·연결의 출처를 판단하지 않습니다. */
+/**
+ * 강제로 거는 최소 정책 — 어느 지시어도 스크립트·이미지·연결의 **출처를 판단하지 않습니다.**
+ * 그래서 이 목록으로는 지도가 막힐 수 없습니다.
+ *
+ * `upgrade-insecure-requests` 는 **막는 지시어가 아니라 바꾸는 지시어**입니다 (2026-08-17 추가).
+ * 페이지가 내는 `http://` 자원 요청을 브라우저가 보내기 전에 `https://` 로 올려 줍니다 —
+ * 걸러 내는 목록이 없으므로 위 넷과 같은 성질이고, 이것 때문에 무엇이 막히지는 않습니다.
+ * 넣은 이유는 아래 `CSP_REPORT_ONLY` 의 2026-08-17 실측 항목에 적었습니다.
+ */
 const CSP_ENFORCED = [
   "base-uri 'self'",
   "object-src 'none'",
   "form-action 'self'",
   "frame-ancestors 'none'",
+  "upgrade-insecure-requests",
 ].join("; ");
 
 /**
@@ -61,6 +70,34 @@ const CSP_ENFORCED = [
  *      때문으로 보이며(SDK 가 현재 프로토콜을 따라갑니다), 배포본은 `https` 라 같은 값이
  *      `https://` 로 나갈 것으로 봅니다. **다만 이는 추정이고 배포본에서 다시 봐야 확정됩니다** —
  *      `img-src`·`script-src` 에 `http:` 를 넣지 않은 채로 두고 보고 기록으로 판별합니다.
+ *
+ * ── 2026-08-17 배포본 실측 — 위 3번의 추정은 **틀렸습니다** ────────────────────
+ * 배포본(`https`)에서도 **지도 타일이 `http://` 로 나갑니다.** 사용자가 배포본 콘솔에서 읽은
+ * 기록이 근거입니다 — `Mixed Content: ... was loaded over HTTPS, but requested an insecure
+ * element ... This request was automatically upgraded to HTTPS` 와
+ * `Loading the image ... violates ... "img-src 'self' data: blob: https:"` 두 줄이며,
+ * 건수는 화면마다 누적(결과 24 · 상세 16 · `S5`·`S6-2` 100+)이고 **지도가 없는 화면은 `No Issues`**
+ * 라 출처가 지도임이 대조로 드러났습니다. **오류(빨강)는 0건**이고 **`script-src` 위반도 0건**
+ * 입니다 — SDK 본체는 `https` 로 나갔고, `http` 로 나가는 것은 **타일 이미지뿐**입니다.
+ *
+ * **지금 화면은 정상입니다.** 이 정책은 차단하지 않는 모드이고, 브라우저가 그 요청을 스스로
+ * `https` 로 올려 주기 때문입니다(위 첫 줄이 그 말입니다). **문제는 승격 시점**입니다 —
+ * 완전판을 이대로 강제로 올리면 `img-src` 에 `http:` 가 없어 **지도 타일이 통째로 막힙니다.**
+ *
+ * **처방 (2026-08-17, `D-62` 회차) — 두 자리를 손봤고 승격은 하지 않았습니다.**
+ *   ㉠ **강제 층에 `upgrade-insecure-requests` 추가.** 요청이 나가기 전에 `http://` 를
+ *      `https://` 로 올려 두면, 나중에 완전판을 강제해도 **판정 대상이 이미 `https`** 입니다.
+ *      출처를 판단하지 않는 지시어라 **지금 무엇을 막지도 않습니다.** 브라우저의 자동 승격은
+ *      이미지에만 걸리는 안전망이지만 이쪽은 **정책으로 못박는 것**이라 종류를 가리지 않습니다.
+ *   ㉡ **보고 전용 `img-src` 에 `http://*.daumcdn.net` 추가.** 위반 기록은 **승격 전 주소**로
+ *      남으므로, ㉠ 을 걸어도 이 목록에 `http` 자리가 없으면 **보고는 계속 쌓입니다.** 그러면
+ *      *"보고가 비면 승격한다"* 는 판별 자체가 성립하지 않습니다. 호스트를 카카오 CDN 하나로
+ *      좁혀 열어 두면 **보고가 다시 판별 수단이 되고**, 승격했을 때 타일이 막히지 않는다는
+ *      보장도 함께 얻습니다. 실제 요청은 ㉠ 때문에 `https` 로 나가므로 이 허용으로 평문 통신이
+ *      늘어나지는 않습니다. **`script-src` 에는 넣지 않았습니다** — 위반이 0건이었고, 스크립트를
+ *      평문으로 여는 것은 이미지와 무게가 다릅니다.
+ *   ㉢ **승격은 이번 회차에 하지 않습니다.** 지도가 죽는 사고는 배포본에서만 나므로, 위 둘을
+ *      건 판을 먼저 배포해 콘솔을 다시 읽고 그다음 회차에 정합니다(`PROGRESS.md` §남은 작업 52번).
  */
 const CSP_REPORT_ONLY = [
   "default-src 'self'",
@@ -68,7 +105,9 @@ const CSP_REPORT_ONLY = [
   `script-src 'self' 'unsafe-inline' 'unsafe-eval' ${KAKAO_ORIGINS}`,
   "style-src 'self' 'unsafe-inline'",
   // 장소 사진은 공공 API 가 주는 외부 주소이고, 지도 타일도 이미지입니다.
-  "img-src 'self' data: blob: https:",
+  // `http://*.daumcdn.net` = 지도 타일이 평문으로 나가는 실측분 (2026-08-17 ㉡ — 실제 요청은
+  // `upgrade-insecure-requests` 로 `https` 가 됩니다).
+  "img-src 'self' data: blob: https: http://*.daumcdn.net",
   "font-src 'self' data:",
   `connect-src 'self' ${KAKAO_ORIGINS} https://*.supabase.co wss://*.supabase.co`,
   "worker-src 'self'",
