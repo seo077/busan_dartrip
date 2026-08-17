@@ -344,6 +344,49 @@ function isMissingColumn(
   return error.code === "PGRST204" || error.code === "42703";
 }
 
+/**
+ * `sync_runs.audit` 에 실제로 담기는 모양 (2026-08-17 확장 — `X-50` 잔여 · `D-66-2`).
+ *
+ * 왜 이 열에 얹는가
+ * -----------------
+ * `SyncCounts` 여섯 값 중 **`fetched`·`upserted`·`skipped` 는 자기 열이 있고**, 나머지 셋
+ * (`calls`·`hiddenSeen`·`hidden`)은 **응답 본문에만 있고 아무 데도 남지 않았습니다.** 특히
+ * `calls` 는 주석이 스스로 *"한도 대조용"* 이라 적어 둔 값인데, 남지 않으니 외부 API 사용량을
+ * 뒤에서 대조할 수단이 없었습니다.
+ *
+ * 열을 셋 더하는 것이 곧은 길이지만 **마이그레이션은 하지 않기로 정해졌습니다**(`D-66-2`).
+ * 그래서 이미 있는 jsonb 열 하나에 함께 담습니다 — **DDL 변경 0건**입니다.
+ *
+ * 모양이 바뀌는 것과 그 대가
+ * --------------------------
+ * 종전에는 이 열의 값이 **대조 결과 그 자체**였고 `null` 이 *"대조가 안 돌았다"* 였습니다.
+ * 이제는 한 겹 감싸므로 **대조 여부는 `pool` 로 갈립니다**(`pool: null` = 안 돌았음).
+ * 열 자체가 `null` 인 경우는 **적재가 그 항목을 통째로 물러선 때**(열이 아직 없는 상태)로
+ * 좁아집니다.
+ *
+ * - 2026-08-17 **이전 행**은 옛 모양(대조 결과가 평평하게 들어 있거나 `null`)으로 남습니다.
+ *   되짚어 읽을 때는 `compared` 키가 위에 있는지 `pool` 안에 있는지로 갈라 봅니다.
+ * - **DB 열 주석**(`comment on column`)은 마이그레이션이라야 고칠 수 있어 r15 문안 그대로입니다.
+ *   그 사실과 갱신 기한은 `PROGRESS.md` §남은 작업에 등재해 두었습니다.
+ */
+interface AuditColumn {
+  /** 이 실행이 남긴 건수 중 **자기 열이 없는 것**만 (`X-50` 잔여) */
+  counts: { calls: number; hiddenSeen: number; hidden: number };
+  /** 주 1회 집계표 대조 결과. **안 돌았으면 `null`** — 어긋남 0건과 구분합니다 */
+  pool: AuditResult | null;
+}
+
+function buildAuditColumn(
+  counts: SyncCounts | null | undefined,
+  pool: AuditResult | null | undefined,
+): AuditColumn | null {
+  if (!counts) return pool ? { counts: { calls: 0, hiddenSeen: 0, hidden: 0 }, pool } : null;
+  return {
+    counts: { calls: counts.calls, hiddenSeen: counts.hiddenSeen, hidden: counts.hidden },
+    pool: pool ?? null,
+  };
+}
+
 async function finishRun(
   db: SupabaseClient,
   id: number | null,
@@ -358,6 +401,11 @@ async function finishRun(
     cleanup?: CleanupCounts | null;
     /** 이번 실행의 집계표 대조 결과 (`X-50`). **대조가 안 돌았으면 `null`** — 어긋남 0건과 구분합니다 */
     audit?: AuditResult | null;
+    /**
+     * 이번 실행의 건수 전부 (`X-50` 잔여 · `D-66-2`). 이 중 **자기 열이 없는 셋**만
+     * `audit` 열에 함께 담깁니다 — 열을 더하지 않습니다.
+     */
+    counts?: SyncCounts | null;
   },
 ): Promise<void> {
   if (id === null) return;
@@ -379,7 +427,7 @@ async function finishRun(
 
   // 없는 열을 **하나씩** 벗겨 냅니다. 둘 다 한꺼번에 버리면 `audit` 열만 없는 상태에서
   // 이미 있는 `cleanup` 값까지 함께 사라집니다.
-  let error = await write({ ...withCleanup, audit: patch.audit ?? null });
+  let error = await write({ ...withCleanup, audit: buildAuditColumn(patch.counts, patch.audit) });
   if (error && isMissingColumn(error, "audit")) error = await write(withCleanup);
   if (error && isMissingColumn(error, "cleanup")) await write(base);
 }
@@ -863,6 +911,9 @@ export async function runIncrementalSync(options: SyncOptions = {}): Promise<Syn
         cleanup: cleanupRan ? cleanupCounts : null,
         // 대조는 주 1회라 대부분의 실행에서 `null` 이고, 그것이 정상입니다 (`X-50`).
         audit,
+        // 자기 열이 없는 건수 셋(`calls`·`hiddenSeen`·`hidden`)이 `audit` 열에 함께 담깁니다
+        // (`X-50` 잔여 · `D-66-2` — 마이그레이션 0건).
+        counts,
       });
     }
 
@@ -903,6 +954,9 @@ export async function runIncrementalSync(options: SyncOptions = {}): Promise<Syn
       cleanup: cleanupRan ? cleanupCounts : null,
       // 대조도 마찬가지입니다. 대조 뒤에 끊긴 실행이면 그 결과가 남고, 그 전이면 `null` 입니다 (`X-50`).
       audit,
+      // **실패한 실행에서도** 건수 셋을 남깁니다 — 어디까지 부르고 끊겼는지가 한도 대조의
+      // 핵심이라, 성공한 실행만 세면 사용량이 실제보다 작게 보입니다 (`X-50` 잔여).
+      counts,
     });
 
     const finishedAt = new Date();
