@@ -43,6 +43,14 @@
  * 중심점은 표식이 없어 사용자가 겨눌 근거를 볼 수 없는데, 그런 것이 판정에 남아 있으면
  * 화면 어디에도 없는 이름이 결과로 나옵니다. 지도 쪽에서 조준 대상 전부가 들어오도록
  * 범위를 맞추고(`BusanMap` `fitBounds`), 여기서 한 번 더 걸러 둘이 어긋날 자리를 없앱니다.
+ *
+ * ── 겨누지 않고 던졌을 때의 착지 자리 (`D-62`, 2026-08-17 신설) ─────────────
+ * 조준을 쓰지 않는 경로에서도 다트는 **뽑힌 구·군 자리**에 꽂힙니다(`landingPointFor`).
+ * 그 전까지는 지도 상자 한가운데 고정이었고, 그래서 **어느 구·군이 나오든 꽂히는 자리가
+ * 늘 같았습니다.** 바뀌는 것은 **연출이 결과를 따라가는가**뿐이며 **추첨은 손대지 않습니다** —
+ * 구·군을 고르는 일은 여전히 서버의 균등 추첨이고(`D-3` 1단계), 이 파일은 **이미 정해진
+ * 구·군을 화면 어디에 그릴지**만 답합니다. 착지 자리는 조준이 쓰는 표식 좌표와 **같은 값**이라
+ * 두 모드가 같은 지도 위 같은 자리를 가리킵니다.
  */
 
 import { MIN_THROW_POWER, pullPower, type Point } from "@/lib/gesture";
@@ -265,6 +273,37 @@ export function pickTarget(
   }
 
   return { target: best, borderline: Number.isFinite(secondD) && secondD - bestD < BORDERLINE_PX };
+}
+
+/**
+ * 뽑힌 구·군이 지도 상자 안에서 놓이는 자리 — **겨누지 않고 던졌을 때의 착지 지점**입니다(`D-62`).
+ *
+ * 조준이 쓰는 표식 좌표(`projectTargets`)를 **그대로 재사용**합니다. 값을 따로 만들면 같은
+ * 구·군인데 조준 모드와 균등 모드에서 다른 자리에 꽂히고, 그 어긋남은 두 모드를 번갈아 던지는
+ * 사람에게 바로 보입니다.
+ *
+ * **추첨에는 관여하지 않습니다.** 여기 들어오는 `code` 는 **서버가 이미 뽑아 준 구·군**이며
+ * (`D-3` 1단계 균등), 이 함수는 그것을 화면 좌표로 옮기기만 합니다. 모르는 구·군이거나 지도가
+ * 없으면 `null` 을 돌려주고, 그때는 호출한 쪽이 종전대로 지도 상자 한가운데를 씁니다.
+ *
+ * 가장자리 여백(`AIM_INSET_PX`)으로 잘라 두는 이유는 조준점과 같습니다 — 상자 모서리에 붙으면
+ * 꽂힌 자국의 파문이 잘립니다.
+ */
+export function landingPointFor(
+  code: string,
+  targets: readonly AimTarget[],
+  box: BoxSize,
+): Point | null {
+  if (box.width <= 0 || box.height <= 0) return null;
+  const found = targets.find((t) => t.code === code);
+  if (!found) return null;
+
+  const insetX = Math.min(AIM_INSET_PX, box.width / 2);
+  const insetY = Math.min(AIM_INSET_PX, box.height / 2);
+  return {
+    x: clamp(found.x, insetX, box.width - insetX),
+    y: clamp(found.y, insetY, box.height - insetY),
+  };
 }
 
 /**

@@ -27,6 +27,11 @@
  * 그래서 SDK 로드 실패·키 미설정은 오류 화면이 아니라 대체 패널로 처리하고,
  * 그때는 `onViewport(null)` 로 **조준이 불가능함**을 알려 균등 추첨으로 되돌립니다.
  *
+ * **대체 패널은 지금 걸린 구·군의 이름을 답합니다 (D-62).** 지도가 없으면 뽑힌 구·군의 화면
+ * 좌표라는 것이 성립하지 않아 다트는 상자 한가운데에 그대로 꽂힙니다. 대신 그 자리의 글자가
+ * `부산` 에서 **구·군 이름**으로 바뀌므로, 꽂힌 자국과 이름이 같은 자리에 놓입니다 —
+ * *"결과와 꽂힌 곳이 어긋나 보인다"* 는 `D-62` 의 본래 문제가 이 경로에서도 남지 않습니다.
+ *
  * 앱키는 `NEXT_PUBLIC_KAKAO_JS_KEY` 입니다. 브라우저에 공개되는 값이며,
  * 서버 전용 키(REST 키·service_role)는 이 파일에 들어오지 않습니다.
  */
@@ -333,11 +338,20 @@ export function BusanMap({
             </>
           ) : (
             <>
+              {/*
+                지도가 없으면 **꽂힐 자리도 없습니다** — 그릴 지도가 없으니 뽑힌 구·군의 화면
+                좌표라는 것이 성립하지 않습니다(D-62 의 적용 한계). 그래서 이 경로에서는 다트가
+                종전대로 상자 한가운데에 꽂히고, 대신 **이 자리가 뽑힌 구·군 이름으로 바뀝니다.**
+                꽂힌 자국과 이름이 같은 자리에 있으므로 "결과와 꽂힌 곳이 어긋나 보인다" 는
+                본래의 문제는 이 경로에서도 남지 않습니다.
+              */}
               <div
                 aria-hidden
-                className="flex h-24 w-40 items-center justify-center rounded-xl bg-line text-lg font-semibold tracking-[0.3em] text-ink/60"
+                className={`flex h-24 w-40 items-center justify-center rounded-xl bg-line font-semibold text-ink/60 ${
+                  focus ? "text-base tracking-normal" : "text-lg tracking-[0.3em]"
+                }`}
               >
-                부산
+                {focus ? focus.name : "부산"}
               </div>
               <p className="text-xs text-ink-muted">
                 지도를 불러오지 못했습니다. 다트는 그대로 던질 수 있어요.

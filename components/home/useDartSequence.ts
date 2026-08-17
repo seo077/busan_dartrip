@@ -20,11 +20,25 @@
  * **조준이 성립하는 방식 — 이 파일에서 지켜야 하는 성질입니다(D-36).**
  *   1. 놓는 순간의 당김 벡터를 `resolveAim` 에 그대로 넘겨 구·군을 정하고, **그 값이 그대로**
  *      `requestThrow` 로 갑니다. 중간에서 손보지 않습니다.
- *   2. 다트가 도착하는 화면 좌표는 조준점입니다. 조준을 쓰지 않을 때만 지도 상자 한가운데입니다.
+ *   2. 다트가 도착하는 화면 좌표는 조준점입니다.
  *   3. 화면이 당기는 내내 보여 준 이름과 서버로 보낸 값이 같습니다. 궤적을 몰래 휘게 하거나
  *      결과를 다시 뽑는 자리가 없습니다.
  *   4. 조준이 없는 경로(키보드·모션 최소화·조준 끔)는 `resolveAim` 이 null 을 돌려주고
  *      서버가 종전대로 16개 구·군 균등 추첨을 합니다(D-3 1단계).
+ *
+ * **겨누지 않고 던졌을 때 어디에 꽂히는가 (D-62, 2026-08-17 개정).**
+ * 앞 판본은 위 2번이 *"조준을 쓰지 않을 때만 지도 상자 한가운데입니다"* 였습니다. 그래서
+ * **어느 구·군이 뽑히든 다트는 늘 같은 자리에 꽂혔고**, 꽂힌 자리와 결과가 어긋나 보였습니다
+ * (2026-08-17 사용자 관측). 이제 조준을 쓰지 않는 경로도 **뽑힌 구·군 자리**로 갑니다.
+ *
+ *   · **던지기 전에 아는 경우**(범위를 특정 구·군으로 이미 고름) — 그 자리를 바로 도착점으로 씁니다.
+ *   · **응답으로 아는 경우**(조준 끔·키보드 — `D-3` 1단계 균등) — 구·군은 **서버가 답한 뒤에야**
+ *     알 수 있습니다. 그래서 다트는 종전처럼 즉시 출발하고, 응답이 **아직 나는 중에** 오면
+ *     도착 지점을 그 구·군으로 **이어 답니다**(`RETARGET_MIN_MS` 이상 남았을 때만).
+ *     **이미 꽂힌 뒤에 오면 그대로 둡니다** — 꽂힌 다트가 미끄러져 옮겨 가는 그림이 되기 때문입니다.
+ *
+ * **추첨은 한 줄도 바뀌지 않았습니다** — 구·군을 고르는 일은 여전히 서버이고(`D-3` 1단계),
+ * 이 파일이 정하는 것은 **이미 정해진 결과를 어디에 그릴지**뿐입니다(`D-62-3` 단서).
  */
 
 import {
@@ -70,6 +84,25 @@ const FLIGHT_FALLBACK_MS = 420;
 const SHORT_FALL_MS = 420;
 /** 겨눈 구·군에 그 테마 장소가 없어 되돌아오기까지의 시간 */
 const BLOCKED_MS = 1100;
+/**
+ * 비행 중에 도착 지점을 이어 달 때 **남아 있어야 하는 최소 시간**(ms) — `D-62`.
+ * 이보다 덜 남았으면 손대지 않습니다. 남은 길이 짧을수록 방향 전환이 급해져, 궤적을 잇는 것이
+ * 아니라 **꺾이는 것처럼** 보입니다. 그때는 종전대로 지도 상자 한가운데에 꽂힙니다.
+ */
+const RETARGET_MIN_MS = 120;
+/**
+ * 꽂힐 자리를 **모르는 채 출발할 때** 비행에 얹는 여유(ms) — `D-62`.
+ *
+ * 겨누지 않은 던지기는 구·군을 서버가 답한 뒤에야 압니다. 그런데 기본 세기의 비행은 380ms 라,
+ * 응답이 그보다 늦으면 다트가 이미 꽂힌 뒤가 되어 **한가운데로 떨어집니다.**
+ * **실측이 그 자리에 걸쳐 있었습니다** — 로컬 배포 빌드에서 `POST /api/throw` 가
+ * **230·253·278ms**(2026-08-17, 브라우저 자원 타이밍)였고, 셋 중 하나만 제때 닿았습니다.
+ *
+ * 그래서 **자리를 모를 때만** 비행을 이만큼 늘립니다. 늘어난 값(기본 세기 380 → 580ms)도
+ * 구·군 확정 시점(1.0s)보다 앞이라 연출 시간표는 그대로입니다. 겨누고 던지거나 범위를 미리
+ * 고른 경로는 자리를 알고 출발하므로 **한 틱도 늘어나지 않습니다.**
+ */
+const LANDING_WAIT_MS = 200;
 
 export type DartStage =
   | "idle" // 다트가 놓여 있음
@@ -101,10 +134,15 @@ export interface DartHit {
 export type DartOutcome = DartHit | { kind: "empty" } | { kind: "error"; message?: string };
 
 export interface FlightSpec {
+  /**
+   * 이 던지기의 일련번호. **도착 지점을 이어 달아도(`D-62`) 값이 바뀌지 않습니다** —
+   * 비행 레이어가 "새 던지기"와 "같은 던지기의 도착 지점 변경"을 가르는 기준입니다.
+   */
+  id: number;
   /** 출발 지점 — 화면(뷰포트) 좌표 */
   fromX: number;
   fromY: number;
-  /** 도착까지의 이동량. 지도 상자 한가운데로 고정됩니다. */
+  /** 도착까지의 이동량. 겨눈 자리 또는 뽑힌 구·군 자리이고, 둘 다 없을 때만 지도 상자 한가운데입니다. */
   dx: number;
   dy: number;
   durationMs: number;
@@ -126,6 +164,17 @@ interface Options {
    * 조준을 쓰지 않는 경로면 없거나 null 을 돌려주고, 그때는 서버가 균등 추첨을 합니다.
    */
   resolveAim?: (pull: Point) => AimState | null;
+  /**
+   * 뽑힌 구·군이 지도 상자 안에서 놓이는 자리 (`D-62`). **조준을 쓰지 않는 경로의 착지 지점**이며,
+   * 지도가 없거나 모르는 구·군이면 null 을 돌려줍니다(그때는 지도 상자 한가운데).
+   * **추첨에 관여하지 않습니다** — 이미 정해진 구·군을 화면 좌표로 옮기기만 합니다.
+   */
+  resolveLanding?: (sigunguCode: string) => Point | null;
+  /**
+   * 던지기 전에 이미 결과 구·군을 아는 경로(범위를 특정 구·군으로 고름)의 착지 지점 (`D-62`).
+   * 있으면 응답을 기다리지 않고 처음부터 그 자리로 날아갑니다.
+   */
+  presetLanding?: Point | null;
   /** 서버 던지기. 조준 결과를 **그대로** 넘깁니다(중간에서 손보지 않습니다). */
   requestThrow: (aimed: AimTarget | null) => Promise<DartOutcome>;
   onHit: (hit: DartHit) => void;
@@ -146,6 +195,11 @@ export interface DartSequence {
   hit: DartHit | null;
   /** 이번 던지기에 확정된 조준(놓는 순간 잠깁니다). 조준을 안 썼으면 null */
   aim: AimState | null;
+  /**
+   * 다트가 꽂힌 자리 — 지도 상자 기준 px (`D-62`). 조준이면 겨눈 점, 아니면 뽑힌 구·군 자리이며,
+   * 아직 모르면 null 입니다(그때 화면은 지도 상자 한가운데를 씁니다).
+   */
+  landing: Point | null;
   /** 톡 건드리거나 약하게 놓았을 때의 한 줄 안내 */
   hint: string | null;
   /** 던지는 중(중복 입력 차단 구간) */
@@ -163,6 +217,27 @@ export interface DartSequence {
 
 const ZERO: Point = { x: 0, y: 0 };
 
+/**
+ * 같은 던지기의 **도착 지점만** 바꿉니다 (`D-62`).
+ * 출발 자리·세기·기울기·일련번호는 그대로 두고 이동량과 남은 시간만 다시 잽니다 —
+ * 그래야 비행 레이어가 처음부터 다시 날리지 않고 **가던 길에서 이어** 갑니다.
+ */
+function retargetFlight(
+  spec: FlightSpec,
+  point: Point,
+  box: DOMRect,
+  durationMs: number,
+): FlightSpec {
+  const toX = box.left + point.x;
+  const toY = box.top + point.y;
+  return {
+    ...spec,
+    dx: toX - (spec.fromX + spec.size / 2),
+    dy: toY - spec.fromY,
+    durationMs,
+  };
+}
+
 export function useDartSequence(options: Options): DartSequence {
   const {
     enabled,
@@ -170,6 +245,8 @@ export function useDartSequence(options: Options): DartSequence {
     dartRef,
     targetRef,
     resolveAim,
+    resolveLanding,
+    presetLanding,
     requestThrow,
     onHit,
     onEmpty,
@@ -182,6 +259,7 @@ export function useDartSequence(options: Options): DartSequence {
   const [flight, setFlight] = useState<FlightSpec | null>(null);
   const [hit, setHit] = useState<DartHit | null>(null);
   const [aim, setAim] = useState<AimState | null>(null);
+  const [landing, setLanding] = useState<Point | null>(null);
   const [hint, setHint] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -196,6 +274,8 @@ export function useDartSequence(options: Options): DartSequence {
   const doneRef = useRef(false);
   const aliveRef = useRef(true);
   const timersRef = useRef<number[]>([]);
+  /** 던지기 일련번호 — 도착 지점을 이어 달 때 "같은 던지기인지" 를 가릅니다(`D-62`). */
+  const flightSeqRef = useRef(0);
 
   useEffect(() => {
     aliveRef.current = true;
@@ -232,8 +312,8 @@ export function useDartSequence(options: Options): DartSequence {
 
   /**
    * 비행 궤적을 만듭니다.
-   * 도착 지점은 **겨눈 자리**입니다. 조준을 쓰지 않으면 지도 상자 한가운데로 갑니다.
-   * 세기는 걸리는 시간과 잔상에만 들어갑니다.
+   * 도착 지점은 **겨눈 자리** 또는 **뽑힌 구·군 자리**(`D-62`)이고, 둘 다 아직 모를 때만
+   * 지도 상자 한가운데로 갑니다. 세기는 걸리는 시간과 잔상에만 들어갑니다.
    */
   const buildFlight = useCallback(
     (power: number, kind: "throw" | "short", aimPoint: Point | null): FlightSpec | null => {
@@ -257,6 +337,7 @@ export function useDartSequence(options: Options): DartSequence {
       const reach = kind === "throw" ? 1 : shortFlightReach(power);
 
       return {
+        id: ++flightSeqRef.current,
         fromX,
         fromY,
         dx: fullDx * reach,
@@ -300,6 +381,7 @@ export function useDartSequence(options: Options): DartSequence {
     async (power: number, state: AimState) => {
       setBusyBoth(true);
       setAim(state);
+      setLanding(state.point);
       setHint(null);
 
       const spec = buildFlight(power, "throw", state.point);
@@ -317,6 +399,7 @@ export function useDartSequence(options: Options): DartSequence {
 
       setStage("idle");
       setAim(null);
+      setLanding(null);
       setBusyBoth(false);
     },
     [buildFlight, onBlocked, setBusyBoth, wait],
@@ -335,6 +418,14 @@ export function useDartSequence(options: Options): DartSequence {
       setAim(state);
       setHint(null);
 
+      /*
+       * 꽂힐 자리 (`D-62`). 겨눴으면 겨눈 점이고, 겨누지 않았어도 **결과 구·군을 이미 아는
+       * 경로**(범위를 직접 고름)면 그 자리입니다. 둘 다 아니면 아직 모르는 상태(null)로 두고,
+       * 서버가 답한 뒤에 아래에서 이어 답니다.
+       */
+      const startLanding = state?.point ?? presetLanding ?? null;
+      setLanding(startLanding);
+
       const startedAt = Date.now();
       // 겨눈 구·군이 그대로 서버로 갑니다. 여기서 바꾸지 않습니다(D-36).
       const pending = requestThrow(state?.target ?? null);
@@ -342,9 +433,45 @@ export function useDartSequence(options: Options): DartSequence {
       if (reducedMotion) {
         setStage("waiting");
       } else {
-        const spec = buildFlight(power, "throw", state?.point ?? null);
+        /** 꽂힐 자리를 모르면 응답이 닿을 여유를 얹습니다 (`D-62` — `LANDING_WAIT_MS`). */
+        const waitsForLanding = !startLanding && Boolean(resolveLanding);
+        const base = buildFlight(power, "throw", startLanding);
+        const spec =
+          base && waitsForLanding
+            ? { ...base, durationMs: base.durationMs + LANDING_WAIT_MS }
+            : base;
         setFlight(spec);
         setStage("flying");
+
+        /*
+         * 균등 경로(`D-3` 1단계)는 **서버가 답한 뒤에야** 구·군을 압니다. 다트는 이미 떠났으므로,
+         * 응답이 비행 중에 오면 도착 지점을 뽑힌 구·군으로 **이어 답니다**(`D-62`).
+         * 남은 시간이 얼마 없으면 손대지 않습니다 — 급히 꺾이거나, 이미 꽂힌 다트가 미끄러져
+         * 옮겨 가는 그림이 됩니다. 그때는 종전대로 지도 상자 한가운데입니다.
+         */
+        if (spec && waitsForLanding && resolveLanding) {
+          const flewAt = Date.now();
+          void pending
+            .then((outcome) => {
+              if (!aliveRef.current || outcome.kind !== "hit") return;
+              const box = targetRef.current;
+              if (!box) return;
+              const left = spec.durationMs - (Date.now() - flewAt);
+              if (left < RETARGET_MIN_MS) return;
+              const point = resolveLanding(outcome.sigunguCode);
+              if (!point) return;
+              setLanding(point);
+              setFlight((prev) =>
+                prev && prev.id === spec.id
+                  ? retargetFlight(prev, point, box.getBoundingClientRect(), left)
+                  : prev,
+              );
+            })
+            .catch(() => {
+              // 응답 실패는 아래 `await pending` 이 그대로 받습니다.
+            });
+        }
+
         await wait(spec?.durationMs ?? FLIGHT_FALLBACK_MS);
         if (!aliveRef.current) return;
         setFlight(null);
@@ -365,6 +492,7 @@ export function useDartSequence(options: Options): DartSequence {
       if (outcome.kind === "empty") {
         setStage("idle");
         setAim(null);
+        setLanding(null);
         setBusyBoth(false);
         onEmpty();
         return;
@@ -377,6 +505,7 @@ export function useDartSequence(options: Options): DartSequence {
         if (!aliveRef.current) return;
         setStage("idle");
         setAim(null);
+        setLanding(null);
         setBusyBoth(false);
         return;
       }
@@ -419,7 +548,20 @@ export function useDartSequence(options: Options): DartSequence {
 
       finish(outcome);
     },
-    [buildFlight, enabled, finish, onEmpty, onError, reducedMotion, requestThrow, setBusyBoth, wait],
+    [
+      buildFlight,
+      enabled,
+      finish,
+      onEmpty,
+      onError,
+      presetLanding,
+      reducedMotion,
+      requestThrow,
+      resolveLanding,
+      setBusyBoth,
+      targetRef,
+      wait,
+    ],
   );
 
   // ── 포인터 (마우스·터치·펜 한 경로) ────────────────────────────────────────
@@ -480,7 +622,8 @@ export function useDartSequence(options: Options): DartSequence {
       }
 
       if (power < MIN_THROW_POWER) {
-        void playShort(power, aimed?.point ?? null);
+        // 못 미친 던지기도 가려던 쪽으로 떨어집니다 — 결과 구·군을 미리 아는 경로면 그 방향입니다.
+        void playShort(power, aimed?.point ?? presetLanding ?? null);
         return;
       }
 
@@ -492,7 +635,7 @@ export function useDartSequence(options: Options): DartSequence {
 
       void runThrow(power, aimed);
     },
-    [playBlocked, playShort, resolveAim, runThrow],
+    [playBlocked, playShort, presetLanding, resolveAim, runThrow],
   );
 
   const onPointerUp = useCallback(
@@ -543,6 +686,7 @@ export function useDartSequence(options: Options): DartSequence {
     flight,
     hit,
     aim,
+    landing,
     hint,
     busy,
     onPointerDown,

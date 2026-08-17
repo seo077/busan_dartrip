@@ -26,6 +26,13 @@
  * 종전대로입니다. 특히 **"부산 전체 · 조준 끔" 은 16개 구·군 균등 추첨**입니다(D-3 1단계).
  * 두 모드가 화면 위에 나란히 보이고, 지금 어느 쪽인지를 문구가 그대로 말합니다.
  *
+ * ── 겨누지 않아도 뽑힌 구·군에 꽂힙니다 (D-62, 2026-08-17) ──────────────────
+ * 균등 모드에서 다트가 **늘 지도 상자 한가운데**에 꽂히던 것을 고쳤습니다. 결과는 매번 다른데
+ * 꽂히는 자리가 같아 **연출이 결과를 배신하는** 화면이었습니다. 이제 조준을 쓰지 않는 경로도
+ * 뽑힌 구·군 자리로 갑니다 — 자리를 대는 것은 `resolveLanding`(조준 표식과 같은 좌표)이고,
+ * 범위를 이미 고른 경로는 던지기 전에 알 수 있어 `presetLanding` 으로 미리 넘깁니다.
+ * **추첨은 손대지 않았습니다**(D-62-3) — 구·군을 고르는 일은 여전히 서버입니다.
+ *
  * ── 던지기가 하나의 손동작이 된 뒤의 구조 ──────────────────────────────────
  * 던지기 버튼 자리에 **잡아 당겼다 놓는 다트**가 들어왔고, S2 연출은 화면을 옮기지 않고
  * 이 화면 위에서 이어집니다. 연출 진행은 `useDartSequence`, 손에 잡히는 부분은 `DartThrowZone`,
@@ -47,6 +54,7 @@ import { DartGlyph } from "@/components/home/DartGlyph";
 import { DartThrowZone } from "@/components/home/DartThrowZone";
 import { useDartSequence, type DartHit, type DartOutcome } from "@/components/home/useDartSequence";
 import {
+  landingPointFor,
   projectTargets,
   resolveAim as resolveAimState,
   type AimCandidate,
@@ -259,6 +267,38 @@ export function DartSetup({
   );
 
   /**
+   * 뽑힌 구·군이 지도 위에서 놓이는 자리 (`D-62`) — **겨누지 않고 던졌을 때 다트가 꽂히는 곳**입니다.
+   *
+   * 조준이 쓰는 표식 좌표를 그대로 씁니다(`aimTargets`). **조준이 켜져 있는지와 무관**하게
+   * 지도만 서 있으면 답할 수 있어야 합니다 — 조준을 꺼도 지도는 그대로 떠 있고, 그 위에
+   * 결과 구·군이 있기 때문입니다.
+   *
+   * **지도를 못 불러왔으면 아예 넘기지 않습니다**(`undefined`). 그리면 될 지도가 없으니 답할
+   * 자리도 없고, 연출이 응답을 기다릴 이유도 없어집니다 — 그 경로에서는 종전대로 상자
+   * 한가운데에 꽂히고, 대신 대체 패널이 뽑힌 구·군 이름을 답합니다(`BusanMap`).
+   */
+  const resolveLanding = useMemo(
+    () =>
+      viewport
+        ? (code: string) =>
+            landingPointFor(code, aimTargets, {
+              width: viewport.width,
+              height: viewport.height,
+            })
+        : undefined,
+    [aimTargets, viewport],
+  );
+
+  /**
+   * 범위를 특정 구·군으로 이미 골랐으면 **던지기 전에 결과 구·군을 압니다**(`D-4`).
+   * 그때는 응답을 기다릴 것 없이 처음부터 그 자리로 날립니다 (`D-62`).
+   */
+  const presetLanding = useMemo(
+    () => (scope ? (resolveLanding?.(scope) ?? null) : null),
+    [scope, resolveLanding],
+  );
+
+  /**
    * 던질 수 없을 때 다트 옆에 붙는 한 줄.
    * 0건 조합의 **이유와 다음 행동**은 아래 §3.3 안내 상자가 그대로 맡습니다
    * (여기서는 "왜 다트가 흐린가" 만 답합니다 — 두 자리가 서로를 대신하지 않습니다).
@@ -353,6 +393,8 @@ export function DartSetup({
     dartRef,
     targetRef: mapBoxRef,
     resolveAim,
+    resolveLanding,
+    presetLanding,
     requestThrow,
     onHit,
     onEmpty,
@@ -377,15 +419,16 @@ export function DartSetup({
   );
 
   /**
-   * 꽂힌 자국의 자리 — 겨눈 지점입니다(지도 상자 한가운데 기준의 어긋남).
+   * 꽂힌 자국의 자리 — **다트가 실제로 꽂힌 지점**입니다(지도 상자 한가운데 기준의 어긋남).
+   * 겨눴으면 겨눈 점, 겨누지 않았으면 **뽑힌 구·군 자리**입니다(`D-62`).
    * 구·군 확정 단계에서 지도가 그 구·군을 한가운데로 끌어오므로, 자국도 한가운데로 따라갑니다
    * (다트가 꽂힌 채 지도가 움직이는 그림입니다).
    */
   const landOffset = useMemo(() => {
-    const point = sequence.aim?.point;
+    const point = sequence.landing;
     if (!point || !viewport) return { dx: 0, dy: 0 };
     return { dx: point.x - viewport.width / 2, dy: point.y - viewport.height / 2 };
-  }, [sequence.aim, viewport]);
+  }, [sequence.landing, viewport]);
   const markDx = revealing ? 0 : landOffset.dx;
   const markDy = revealing ? 0 : landOffset.dy;
 
